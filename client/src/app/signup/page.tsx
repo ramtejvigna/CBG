@@ -443,19 +443,6 @@ export default function AuthForm() {
                         <div className="mt-6 grid grid-cols-2 gap-4">
                             <button
                                 type="button"
-                                onClick={() => handleSocialLogin('github')}
-                                disabled={loading}
-                                className="flex items-center justify-center py-2.5 px-4 rounded-lg border border-gray-700 
-                                bg-gray-700 hover:bg-gray-600 transition-all duration-300 text-white font-medium
-                                group relative overflow-hidden"
-                            >
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-600/20 to-transparent opacity-0 
-                                group-hover:opacity-100 transform -translate-x-full group-hover:translate-x-full transition-all duration-1000"></div>
-                                <Github className="w-5 h-5 mr-2 group-hover:text-orange-400 transition-colors duration-300" />
-                                <span className="relative z-10">GitHub</span>
-                            </button>
-                            <button
-                                type="button"
                                 onClick={() => handleSocialLogin('google')}
                                 disabled={loading}
                                 className="flex items-center justify-center py-2.5 px-4 rounded-lg border border-gray-700 
