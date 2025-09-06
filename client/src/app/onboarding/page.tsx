@@ -45,20 +45,29 @@ export default function OnboardingPage() {
         setError(null);
 
         try {
-            const response = await fetch('/api/auth/complete-profile', {
+            if (!session?.user?.id) {
+                throw new Error('No user session found');
+            }
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/complete-onboarding`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify({
+                    userId: session.user.id,
+                    username: formData.username,
+                    preferredLanguage: formData.preferredLanguage
+                })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Failed to complete profile setup');
+                throw new Error(data.message || 'Failed to complete onboarding');
             }
 
-            // Redirect to the dashboard or home page
+            // Redirect to the dashboard after successful onboarding
             router.push('/');
+
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         } finally {

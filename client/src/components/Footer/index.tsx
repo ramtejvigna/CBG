@@ -16,11 +16,11 @@ const Footer = () => {
                     <div className="flex flex-col space-y-4">
                         <Link href="/" className='w-[23%]'>
                             <h1 className="cursor-pointer uppercase font-[family-name:var(--font-kanit-sans)] flex flex-col select-none">
-                                <span className="text-[9px] leading-[9px] self-start tracking-wider text-gray-400">Code</span>
+                                <span className="text-[9px] leading-[9px] self-start tracking-wider font-extrabold text-gray-400">Code</span>
                                 <span className="bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-2xl py-1 bg-clip-text text-transparent leading-[12px] font-extrabold tracking-wide scale-y-75 transform origin-top">
                                     Battle
                                 </span>
-                                <span className="text-[9px] leading-[0] self-end tracking-wider text-gray-400">Ground</span>
+                                <span className="text-[9px] leading-[0] self-end tracking-wider font-extrabold text-gray-400">Ground</span>
                             </h1>
                         </Link>
                         <p className="text-sm">

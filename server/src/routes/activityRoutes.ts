@@ -1,8 +1,13 @@
-import express from "express"
+import { Router } from 'express';
+import {
+    getOverallUserActivity,
+    getRecentUserActivity
+} from '../controllers/activityControllers.js';
+import { authenticate } from '../middleware/auth.js';
 
-const router = express.Router();
+const router = Router();
 
-router.get('/:id');
-router.get('/:id/recent');
+router.get('/', authenticate, getOverallUserActivity);
+router.get('/recent', authenticate, getRecentUserActivity);
 
 export default router;

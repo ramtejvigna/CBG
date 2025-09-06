@@ -1,12 +1,22 @@
-import express from "express"
+import { Router } from 'express';
+import {
+    getChallengeById,
+    getChallengesByFilter,
+    getChallengeSubmissions,
+    createChallenge,
+    updateChallenge
+} from '../controllers/challengeControllers.js';
+import { authenticate } from '../middleware/auth.js';
 
-const router = express.Router();
+const router = Router();
 
-router.get('/:id');
-router.get('/category');
-router.get('/submissions');
-router.post('/add');
-router.put('/edit');
-router.delete('/');
+// Public routes
+router.get('/:id', getChallengeById);
+router.get('/', getChallengesByFilter);
+router.get('/:id/submissions', getChallengeSubmissions);
+
+// Protected routes
+router.post('/', authenticate, createChallenge);
+router.put('/:id', authenticate, updateChallenge);
 
 export default router;

@@ -1,10 +1,19 @@
-import express from "express"
+import { Router } from 'express';
+import {
+    getUserSubmissions,
+    getUserDetails,
+    getAllUsers,
+    getLeaderboard
+} from '../controllers/userControllers.js';
+import { authenticate } from '../middleware/auth.js';
 
-const router = express.Router();
+const router = Router();
 
-router.get('/:id/submissions');
-router.get('/:id');
-router.get('/get-all-users');
-router.get('/leaderboard');
+// Public routes
+
+router.get('/users', getAllUsers);
+router.get('/leaderboard', getLeaderboard);
+router.get('/submissions', authenticate, getUserSubmissions);
+router.get('/:userId', getUserDetails);
 
 export default router;

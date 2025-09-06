@@ -125,8 +125,13 @@ export default function AuthForm() {
                 throw new Error(result.error);
             }
 
-            // Redirect to the dashboard or home page
-            router.push('/');
+            // Check if user needs to complete onboarding
+            if (data.needsOnboarding) {
+                router.push('/onboarding');
+            } else {
+                // Redirect to the dashboard or home page
+                router.push('/');
+            }
 
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -440,12 +445,12 @@ export default function AuthForm() {
                         </div>
 
                         {/* Social login buttons with enhanced hover effects */}
-                        <div className="mt-6 grid grid-cols-2 gap-4">
+                        <div className="mt-6">
                             <button
                                 type="button"
                                 onClick={() => handleSocialLogin('google')}
                                 disabled={loading}
-                                className="flex items-center justify-center py-2.5 px-4 rounded-lg border border-gray-700 
+                                className="flex items-center justify-center w-full py-2.5 px-4 rounded-lg border border-gray-700 
                                 bg-gray-700 hover:bg-gray-600 transition-all duration-300 text-white font-medium
                                 group relative overflow-hidden"
                             >

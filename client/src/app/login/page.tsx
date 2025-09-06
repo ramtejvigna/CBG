@@ -364,12 +364,12 @@ export default function AuthForm() {
                         </div>
 
                         {/* Social login buttons with enhanced hover effects */}
-                        <div className="mt-6 grid grid-cols-2 gap-4">
+                        <div className="mt-6 w-full">
                             <button
                                 type="button"
                                 onClick={() => handleSocialLogin('google')}
                                 disabled={loading}
-                                className="flex items-center justify-center py-2.5 px-4 rounded-lg border border-gray-700 
+                                className="flex items-center w-full justify-center py-2.5 px-4 rounded-lg border border-gray-700 
                                 bg-gray-700 hover:bg-gray-600 transition-all duration-300 text-white font-medium
                                 group relative overflow-hidden"
                             >
