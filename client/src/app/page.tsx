@@ -19,42 +19,64 @@ import { useAuth } from "@/context/AuthContext"
 import { useTheme } from "@/context/ThemeContext"
 import Link from "next/link"
 
+interface Challenge {
+  id: string;
+  title: string;
+  difficulty: string;
+  createdAt: string;
+  _count: {
+    submissions: number;
+  };
+}
+
+interface LeaderboardUser {
+  points: number;
+  user: {
+    id: string;
+    username: string;
+    name?: string;
+    image?: string;
+  };
+}
+
 const Home = () => {
   const [currentChallenge, setCurrentChallenge] = useState(0)
   const [codeTyped, setCodeTyped] = useState("")
   const [cursor, setCursor] = useState(true)
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const { theme } = useTheme()
   const { user } = useAuth()
 
   const exampleCode = `function findWinner(scores) {\n  return scores\n    .sort((a, b) => b.points - a.points)\n    .map(player => player.name)[0];\n}`
 
-  // --- Static challenges ---
-  const challenges = [
-    {
-      title: "Binary Search Tree Traversal",
-      difficulty: "Medium",
-      participants: 124,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      title: "Dynamic Programming: Knapsack",
-      difficulty: "Hard",
-      participants: 88,
-      createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-    },
-    {
-      title: "String Anagram Checker",
-      difficulty: "Easy",
-      participants: 201,
-      createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    },
-    {
-      title: "Graph Cycle Detection",
-      difficulty: "Medium",
-      participants: 95,
-      createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    },
-  ]
+  const fetchChallenges = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch challenges');
+      }
+      const data = await response.json();
+      setChallenges(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const fetchLeaderboard = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/leaderboard`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch leaderboard');
+      }
+      const data = await response.json();
+      setLeaderboardData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
 
   const activeChallenges = challenges.map((challenge) => {
     const createdDate: Date = new Date(challenge.createdAt)
@@ -69,16 +91,6 @@ const Home = () => {
 
     return { ...challenge, timeLeft }
   })
-
-  // --- Static leaderboard ---
-  const leaderboard = [
-    { rank: 1, user: { username: "Alice" }, points: 2000, badge: "🏆" },
-    { rank: 2, user: { username: "Bob" }, points: 1800, badge: "🥈" },
-    { rank: 3, user: { username: "Charlie" }, points: 1600, badge: "🥉" },
-    { rank: 4, user: { username: "David" }, points: 1400, badge: "⭐" },
-    { rank: 5, user: { username: "Eva" }, points: 1200, badge: "⭐" },
-    { rank: 6, user: { username: "Frank" }, points: 1000, badge: "⭐" },
-  ]
 
   useEffect(() => {
     let i = 0
@@ -96,7 +108,7 @@ const Home = () => {
     }, 500)
 
     const challengeRotation = setInterval(() => {
-      setCurrentChallenge((prev) => (prev + 1) % activeChallenges.length)
+      setCurrentChallenge((prev) => (prev + 1) % challenges.length)
     }, 5000)
 
     return () => {
@@ -104,7 +116,17 @@ const Home = () => {
       clearInterval(cursorEffect)
       clearInterval(challengeRotation)
     }
-  }, [activeChallenges.length, exampleCode])
+  }, [challenges.length, exampleCode])
+
+  useEffect(() => {
+    setIsLoading(true);
+    Promise.all([
+      fetchChallenges(),
+      fetchLeaderboard()
+    ]).finally(() => {
+      setIsLoading(false);
+    });
+  }, []);
 
   return (
     <div className={`${theme === "dark" && "bg-gray-900 text-gray-200"} min-h-screen `}>
@@ -241,7 +263,7 @@ const Home = () => {
                 <div className="flex items-center justify-between text-sm text-gray-400">
                   <div className="flex items-center">
                     <Users className="w-4 h-4 mr-1" />
-                    {challenge.participants}
+                    {challenge._count.submissions}
                   </div>
                   <div className="flex items-center">
                     <Clock className="w-4 h-4 mr-1" />
@@ -281,15 +303,17 @@ const Home = () => {
               </tr>
             </thead>
             <tbody>
-              {leaderboard.map((player, index) => (
+              {leaderboardData.map((player, index) => (
                 <tr
-                  key={index}
+                  key={player.user.id}
                   className={`border-t border-gray-700 hover:bg-gray-750 transition-colors`}
                 >
-                  <td className="py-4 px-6 font-mono">{player.rank}</td>
+                  <td className="py-4 px-6 font-mono">{index + 1}</td>
                   <td className="py-4 px-6 font-semibold">{player.user.username}</td>
                   <td className="py-4 px-6 text-orange-400 font-mono">{player.points.toLocaleString()}</td>
-                  <td className="py-4 px-6 text-right">{player.badge}</td>
+                  <td className="py-4 px-6 text-right">
+                    {index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⭐"}
+                  </td>
                 </tr>
               ))}
             </tbody>

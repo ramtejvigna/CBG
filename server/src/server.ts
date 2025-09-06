@@ -16,7 +16,7 @@ app.use(cors());
 app.use('/api/auth', authRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api', userRoutes);
-app.use('/api/challenge', challengeRoutes);
+app.use('/api/challenges', challengeRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -45,15 +45,52 @@ export const getChallengeById = async (req: Request, res: Response) => {
     }
 };
 
+export const getHomePageChallenges = async (req: Request, res: Response) => {
+    try {
+        const challenges = await prisma.challenge.findMany({
+            take: 4,
+            include: {
+                creator: {
+                    select: {
+                        username: true,
+                        image: true
+                    }
+                },
+                category: true,
+                _count: {
+                    select: {
+                        submissions: true,
+                        likes: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        res.json(challenges);
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
 export const getChallengesByFilter = async (req: Request, res: Response) => {
     try {
         const { category, difficulty } = req.query;
         
+        const whereClause: any = {};
+        
+        if (category) {
+            whereClause.categoryId = category as string;
+        }
+        
+        if (difficulty) {
+            whereClause.difficulty = difficulty as Difficulty;
+        }
+
         const challenges = await prisma.challenge.findMany({
-            where: {
-                categoryId: category as string,
-                difficulty: difficulty as Difficulty,
-            },
+            where: whereClause,
             include: {
                 creator: {
                     select: {
