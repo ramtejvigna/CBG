@@ -28,6 +28,8 @@ model User {
     adminLead          AdminLead?   // Relation to AdminLead
 
     createChallenges    Challenge[]  @relation("ChallengeCreator")
+    createdContests     Contest[]    @relation("ContestCreator")
+    contestParticipations ContestParticipant[]
     submissions         Submission[]
     challengeAttempts   ChallengeAttempt[]
     challengeLikes      ChallengeLike[]
@@ -115,8 +117,82 @@ model Language {
   userProfile UserProfile[]
   challenges  Challenge[]    @relation("ChallengeLanguages")
   submissions Submission[]
+  contestSubmissions ContestSubmission[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+}
+
+model Contest {
+  id              String            @id @default(cuid())
+  title           String
+  description     String            @db.Text
+  createdAt       DateTime          @default(now())
+  startsAt        DateTime
+  endsAt          DateTime
+  registrationEnd DateTime
+  status          ContestStatus     @default(UPCOMING)
+  creatorId       String
+  creator         User              @relation("ContestCreator", fields: [creatorId], references: [id])
+  participants    ContestParticipant[]
+  challenges      ContestChallenge[]
+  tags            String[]
+  points          Int               @default(0)   // <-- Updated (replaces prizeMoney)
+  maxParticipants Int?              // null means unlimited
+  updatedAt       DateTime          @updatedAt
+}
+
+model ContestParticipant {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  contestId   String
+  contest     Contest   @relation(fields: [contestId], references: [id])
+  joinedAt    DateTime  @default(now())
+  points      Int       @default(0)
+  rank        Int?
+  submissions ContestSubmission[]
+
+  @@unique([userId, contestId])
+}
+
+model ContestChallenge {
+  id          String    @id @default(cuid())
+  contestId   String
+  contest     Contest   @relation(fields: [contestId], references: [id])
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id])
+  points      Int
+  order       Int
+  submissions ContestSubmission[]
+  
+  @@unique([contestId, challengeId])
+}
+
+model ContestSubmission {
+  id                  String            @id @default(cuid())
+  participantId       String
+  participant         ContestParticipant @relation(fields: [participantId], references: [id])
+  contestChallengeId  String
+  contestChallenge    ContestChallenge  @relation(fields: [contestChallengeId], references: [id])
+  code               String            @db.Text
+  languageId         String
+  language           Language          @relation(fields: [languageId], references: [id])
+  status             SubmissionStatus
+  points             Int               @default(0)
+  runtime            Int?              // in milliseconds
+  memory             Int?              // in KB
+  createdAt          DateTime          @default(now())
+  testResults        Json?             // Results of each test case
+
+  @@unique([participantId, contestChallengeId])
+}
+
+enum ContestStatus {
+  UPCOMING
+  REGISTRATION_OPEN
+  ONGOING
+  FINISHED
+  CANCELLED
 }
 
 model Challenge {
@@ -132,6 +208,7 @@ model Challenge {
   submissions     Submission[]
   attempts        ChallengeAttempt[]
   likes           ChallengeLike[]
+  contestChallenges ContestChallenge[]
   category        ChallengeCategory @relation(fields: [categoryId], references: [id])
   challengeType   ChallengeType?
   categoryId      String

@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import challengeRoutes from "./routes/challengeRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js"
+import contestRoutes from "./routes/contestRoutes.js";
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api', userRoutes);
 app.use('/api/challenges', challengeRoutes);
+app.use('/api/contests', contestRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
