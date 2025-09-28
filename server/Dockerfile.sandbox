@@ -1,0 +1,81 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update and install common dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    wget \
+    git \
+    zip \
+    unzip \
+    software-properties-common \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and npm
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    
+# Install TypeScript
+RUN npm install -g typescript
+
+# Install Python 3
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Java
+RUN apt-get update && apt-get install -y \
+    default-jdk \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install C and C++ compilers
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Go
+RUN apt-get update && apt-get install -y \
+    golang \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN apt-get update && apt-get install -y \
+    rustc \
+    cargo \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Ruby
+RUN apt-get update && apt-get install -y \
+    ruby \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user to run code
+RUN useradd -m -u 1000 coderunner
+RUN mkdir -p /code && chown -R coderunner:coderunner /code
+
+# Create execution scripts for each language
+RUN echo '#!/bin/bash\nnode solution.js < input.txt' > /execute-javascript.sh && \
+    echo '#!/bin/bash\ntsc solution.ts && node solution.js < input.txt' > /execute-typescript.sh && \
+    echo '#!/bin/bash\npython3 solution.py < input.txt' > /execute-python.sh && \
+    echo '#!/bin/bash\n# Get the Java filename first\nJAVAFILE=$(ls *.java 2>/dev/null)\nif [ -z "$JAVAFILE" ]; then\n  echo "Error: No Java file found"\n  exit 1\nfi\n\n# Remove BOM if present\nTMP_FILE="temp_no_bom.java"\nsed "s/\\xEF\\xBB\\xBF//g" "$JAVAFILE" > "$TMP_FILE"\nmv "$TMP_FILE" "$JAVAFILE"\n\n# Get the class name from the file\nCLASS_NAME=$(grep -E "public\\s+class\\s+(\\w+)" "$JAVAFILE" | head -1 | sed -E "s/.*public\\s+class\\s+(\\w+).*/\\1/")\nif [ -z "$CLASS_NAME" ]; then\n  CLASS_NAME="Solution"  # Default class name\nfi\n\n# Compile with explicit encoding\njavac -encoding UTF-8 "$JAVAFILE" && java "$CLASS_NAME" < input.txt' > /execute-java.sh && \
+    echo '#!/bin/bash\ng++ -o solution solution.cpp && ./solution < input.txt' > /execute-c++.sh && \
+    echo '#!/bin/bash\ngcc -o solution solution.c && ./solution < input.txt' > /execute-c.sh && \
+    echo '#!/bin/bash\ngo build -o solution solution.go && ./solution < input.txt' > /execute-go.sh && \
+    echo '#!/bin/bash\nrustc solution.rs -o solution && ./solution < input.txt' > /execute-rust.sh && \
+    echo '#!/bin/bash\nruby solution.rb < input.txt' > /execute-ruby.sh && \
+    chmod +x /execute-*.sh
+
+WORKDIR /code
+
+# Set secure permissions for all execution scripts
+RUN chmod 755 /execute-*.sh
+
+# Set the user to run commands
+USER coderunner

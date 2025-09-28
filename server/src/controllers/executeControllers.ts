@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { dockerExecutor } from '../lib/dockerExecutor.js';
+import { SubmissionStatus } from '@prisma/client';
 
-// Mock code execution service - in a real app, you'd integrate with a code execution service
-// like Judge0, Sphere Engine, or build your own sandboxed execution environment
+// Execute code in a sandboxed Docker environment
 export const executeCode = async (req: Request, res: Response) => {
     try {
         const { 
@@ -71,20 +72,45 @@ export const executeCode = async (req: Request, res: Response) => {
             });
         }
 
-        // Simulate code execution (replace this with actual execution logic)
-        const testResults = testCases.map(testCase => {
-            // Mock execution logic
-            const mockResult = simulateCodeExecution(code, language, testCase.input, testCase.output);
-            return {
-                input: testCase.input,
-                expectedOutput: testCase.output,
-                actualOutput: mockResult.output,
-                passed: mockResult.passed,
-                runtime: mockResult.runtime,
-                memory: mockResult.memory,
-                testCaseId: testCase.id
-            };
-        });
+        // Execute code in Docker containers for each test case
+        const testResults = await Promise.all(testCases.map(async (testCase) => {
+            try {
+                // Execute code in Docker container
+                const executionResult = await dockerExecutor.execute(
+                    code,
+                    language,
+                    testCase.input,
+                    testCase.output,
+                    challenge.timeLimit,
+                    challenge.memoryLimit
+                );
+                
+                return {
+                    input: testCase.input,
+                    expectedOutput: testCase.output,
+                    actualOutput: executionResult.output,
+                    passed: executionResult.passed || false,
+                    runtime: executionResult.runtime || 0,
+                    memory: executionResult.memory || 0,
+                    error: executionResult.error,
+                    status: executionResult.status,
+                    testCaseId: testCase.id
+                };
+            } catch (error) {
+                console.error(`Error executing test case ${testCase.id}:`, error);
+                return {
+                    input: testCase.input,
+                    expectedOutput: testCase.output,
+                    actualOutput: '',
+                    passed: false,
+                    runtime: 0,
+                    memory: 0,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                    status: SubmissionStatus.RUNTIME_ERROR,
+                    testCaseId: testCase.id
+                };
+            }
+        }));
 
         // Calculate overall results
         const passedTests = testResults.filter(result => result.passed).length;
@@ -92,9 +118,28 @@ export const executeCode = async (req: Request, res: Response) => {
         const allPassed = passedTests === totalTests;
         const avgRuntime = Math.round(testResults.reduce((sum, result) => sum + (result.runtime || 0), 0) / testResults.length);
         const avgMemory = Math.round(testResults.reduce((sum, result) => sum + (result.memory || 0), 0) / testResults.length);
+        
+        // Determine overall status
+        let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
+        
+        if (!allPassed) {
+            const failedResults = testResults.filter(result => !result.passed);
+            // Get the most severe error status
+            if (failedResults.some(r => r.status === SubmissionStatus.COMPILATION_ERROR)) {
+                overallStatus = SubmissionStatus.COMPILATION_ERROR;
+            } else if (failedResults.some(r => r.status === SubmissionStatus.RUNTIME_ERROR)) {
+                overallStatus = SubmissionStatus.RUNTIME_ERROR;
+            } else if (failedResults.some(r => r.status === SubmissionStatus.MEMORY_LIMIT_EXCEEDED)) {
+                overallStatus = SubmissionStatus.MEMORY_LIMIT_EXCEEDED;
+            } else if (failedResults.some(r => r.status === SubmissionStatus.TIME_LIMIT_EXCEEDED)) {
+                overallStatus = SubmissionStatus.TIME_LIMIT_EXCEEDED;
+            } else {
+                overallStatus = SubmissionStatus.WRONG_ANSWER;
+            }
+        }
 
         // If this is a submission and user is provided, save it
-        if (isSubmission && userId && allPassed) {
+        if (isSubmission && userId) {
             try {
                 await prisma.submission.create({
                     data: {
@@ -102,7 +147,7 @@ export const executeCode = async (req: Request, res: Response) => {
                         challengeId: challengeId,
                         code: code,
                         languageId: challengeLanguage.id,
-                        status: allPassed ? 'ACCEPTED' : 'WRONG_ANSWER',
+                        status: overallStatus,
                         runtime: avgRuntime,
                         memory: avgMemory,
                         testResults: testResults
@@ -122,7 +167,8 @@ export const executeCode = async (req: Request, res: Response) => {
             allPassed,
             passedTests,
             totalTests,
-            compilationError: false
+            compilationError: overallStatus === SubmissionStatus.COMPILATION_ERROR,
+            status: overallStatus
         });
 
     } catch (error) {
@@ -135,24 +181,3 @@ export const executeCode = async (req: Request, res: Response) => {
     }
 };
 
-// Mock code execution function - replace with actual execution service
-function simulateCodeExecution(code: string, language: string, input: string, expectedOutput: string) {
-    
-    const mockRuntime = Math.floor(Math.random() * 100) + 10; // 10-110ms
-    const mockMemory = Math.floor(Math.random() * 50) + 10; // 10-60MB
-    
-    // Simple mock logic - in real implementation, this would be actual code execution
-    const codeLength = code.length;
-    const inputLength = input.length;
-    
-    // Mock some basic success/failure logic
-    const mockSuccess = codeLength > 50 && !code.includes('error') && !code.includes('throw');
-    
-    return {
-        output: mockSuccess ? expectedOutput : `Mock output for input: ${input}`,
-        passed: mockSuccess,
-        runtime: mockRuntime,
-        memory: mockMemory,
-        error: null
-    };
-}

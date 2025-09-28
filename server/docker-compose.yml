@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Main server application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-5000}:${PORT:-5000}"
+    environment:
+      - NODE_ENV=production
+      - PORT=${PORT:-5000}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - DOCKER_CONTAINER=true
+    volumes:
+      # Mount tmp directory to host for code execution
+      - ./tmp:/app/tmp
+      # Mount the same tmp directory to /tmp for nested containers
+      - ./tmp:/tmp
+      # Mount Docker socket to allow container to use host's Docker
+      # This works for both Windows and Linux
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - code-executor-builder
+    restart: unless-stopped
+    networks:
+      - app-network
+  
+  # Build the code execution sandbox image
+  code-executor-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    image: code-execution-sandbox:latest
+    # This container only builds the image and exits - it doesn't need to run
+    command: echo "Code execution sandbox image built"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

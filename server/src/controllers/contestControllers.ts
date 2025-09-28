@@ -17,9 +17,13 @@ export const createContest = async (req: Request, res: Response) => {
             challenges 
         } = req.body;
 
-        // Validate that the user is an admin
+        // Validate that the user is authenticated and an admin
+        if (!req.user?.id) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        
         const user = await prisma.user.findUnique({
-            where: { id: req.user?.id },
+            where: { id: req.user.id },
             include: { adminLead: true }
         });
 
@@ -38,7 +42,7 @@ export const createContest = async (req: Request, res: Response) => {
                 maxParticipants,
                 tags,
                 status: ContestStatus.REGISTRATION_OPEN,
-                creatorId: req.user?.id!,
+                creatorId: req.user.id,
                 challenges: {
                     create: challenges.map((challenge: any, index: number) => ({
                         challengeId: challenge.id,

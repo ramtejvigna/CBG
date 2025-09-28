@@ -5,17 +5,23 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node build/server.js",
+    "start": "node build/src/server.js",
     "dev": "nodemon --exec \"npx tsx\" src/server.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build-sandbox": "docker build -t code-execution-sandbox:latest -f Dockerfile.sandbox ."
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^6.15.0",
     "@types/jsonwebtoken": "^9.0.10",
+    "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",

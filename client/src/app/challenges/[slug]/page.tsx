@@ -87,6 +87,7 @@ interface TestResult {
     passed: boolean
     runtime?: number
     memory?: number
+    error?: string
 }
 
 const ChallengePage = () => {
@@ -248,7 +249,7 @@ const ChallengePage = () => {
         setActiveConsoleTab("result")
 
         try {
-            const response = await fetch("/api/execute", {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/execute`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1123,7 +1124,7 @@ int main() {
                                                                                     className={`px-1 rounded transition-colors duration-200 ${isDark ? "bg-gray-700 text-gray-200" : "bg-gray-100 text-gray-800"
                                                                                         }`}
                                                                                 >
-                                                                                    {result.actualOutput}
+                                                                                    {result.actualOutput || result.error}
                                                                                 </code>
                                                                             </div>
                                                                         </div>
