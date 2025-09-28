@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "rootDir": "./src",
+    "rootDir": "./",
     "outDir": "./build",
     "module": "nodenext",
     "target": "esnext",
@@ -20,5 +20,6 @@
   },
   "ts-node": {
     "esm": true
-  }
+  },
+  "include": ["src/**/*", "prisma/**/*"]
 }

@@ -136,6 +136,7 @@ export const getLeaderboard = async (req: Request, res: Response) => {
     try {
         const topUsers = await prisma.userProfile.findMany({
             take: 10,
+            where: { user: { role: 'USER' } },
             select: {
                 points: true,
                 user: {

@@ -2,10 +2,10 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import Split from "react-split"
 import { useTheme } from "@/context/ThemeContext"
-import { useProfileStore } from "@/lib/store/profileStore"
 import {
     ChevronLeft,
     Share,
@@ -26,6 +26,7 @@ import Link from "next/link"
 import toast from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import useChallenge from "@/hooks/useChallenge"
 
 // Types
 interface TestCase {
@@ -88,113 +89,32 @@ interface TestResult {
     memory?: number
 }
 
-// Helper function to extract ID from slug
-const extractIdFromSlug = (slug: string): string => {
-    // Assuming slug format is "challenge-title-slug-{id}"
-    const parts = slug.split("-")
-    const lastPart = parts[parts.length - 1]
-
-    return lastPart
-}
-
-const MOCK_LANGUAGES = [
-    { name: "javascript", displayName: "JavaScript" },
-    { name: "python", displayName: "Python" },
-    { name: "java", displayName: "Java" },
-    { name: "cpp", displayName: "C++" },
-]
-
-const MOCK_CHALLENGE = {
-    id: "1",
-    slug: "two-sum",
-    title: "Two Sum",
-    difficulty: "Easy",
-    description: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
-
-You may assume that each input would have exactly one solution, and you may not use the same element twice.
-
-You can return the answer in any order.
-
-**Example 1:**
-Input: nums = [2,7,11,15], target = 9
-Output: [0,1]
-Explanation: Because nums[0] + nums[1] == 9, we return [0, 1].
-
-**Example 2:**
-Input: nums = [3,2,4], target = 6
-Output: [1,2]
-
-**Example 3:**
-Input: nums = [3,3], target = 6
-Output: [0,1]`,
-    testCases: [
-        {
-            id: "1",
-            input: "nums = [2,7,11,15], target = 9",
-            output: "[0,1]",
-            isHidden: false,
-        },
-        {
-            id: "2",
-            input: "nums = [3,2,4], target = 6",
-            output: "[1,2]",
-            isHidden: false,
-        },
-        {
-            id: "3",
-            input: "nums = [3,3], target = 6",
-            output: "[0,1]",
-            isHidden: true,
-        },
-    ],
-}
-
-const MOCK_SUBMISSIONS = [
-    {
-        id: "1",
-        code: "// Mock code",
-        status: "WRONG_ANSWER",
-        language: { name: "javascript" },
-        createdAt: "2024-01-15T10:30:00Z",
-        runtime: 85,
-        memory: 42.1,
-        score: 0,
-    },
-    {
-        id: "2",
-        code: "// Mock code",
-        status: "ACCEPTED",
-        language: { name: "python" },
-        createdAt: "2024-01-15T11:15:00Z",
-        runtime: 68,
-        memory: 38.9,
-        score: 100,
-    },
-]
-
 const ChallengePage = () => {
     const { slug } = useParams()
+    const router = useRouter()
     const { theme } = useTheme()
-    const { userData } = useProfileStore()
+    const { data: session, status } = useSession()
 
-    // Extract ID from slug
-    const challengeId = slug ? extractIdFromSlug(slug as string) : null
+    const challengeData = useChallenge(slug as string);
 
     const isDark = theme === "dark"
     // State
     const [challenge, setChallenge] = useState<Challenge | null>(null)
     const [loading, setLoading] = useState(true)
-    const [selectedLanguage, setSelectedLanguage] = useState<string>()
+    const [selectedLanguage, setSelectedLanguage] = useState<string>('Java')
     const [code, setCode] = useState<string>("")
-    const [languages, setLanguages] = useState<Language[]>([])
+    const [languages, setLanguages] = useState<Language[]>([
+        { id: "1", name: "Java" },
+        { id: "2", name: "C++" },
+        { id: "3", name: "C" },
+        { id: "4", name: "Python" },
+    ])
     const [testResults, setTestResults] = useState<TestResult[] | null>(null)
     const [isRunning, setIsRunning] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [submissionStatus, setSubmissionStatus] = useState<string | null>(null)
     const [runtime, setRuntime] = useState<number | null>(null)
     const [memory, setMemory] = useState<number | null>(null)
-    const [consoleHeight, setConsoleHeight] = useState(200)
-    const [isConsoleExpanded, setIsConsoleExpanded] = useState(false)
     const [activeConsoleTab, setActiveConsoleTab] = useState("testcase")
     const [submissions, setSubmissions] = useState<Submission[]>([])
     const [submissionsLoading, setSubmissionsLoading] = useState(false)
@@ -203,46 +123,49 @@ const ChallengePage = () => {
     const hasAcceptedSubmission = submissions.some((s) => s.status === "ACCEPTED")
     const isSolved = submissionStatus === "ACCEPTED" || hasAcceptedSubmission
 
+    // Fetch challenge data
     useEffect(() => {
-        const loadStaticData = () => {
-            if (!challengeId) return
-
-            setLoading(true)
-
-            // Simulate API delay
-            setTimeout(() => {
-                setChallenge(MOCK_CHALLENGE as any)
-                setLanguages(MOCK_LANGUAGES as any)
-                setSubmissions(MOCK_SUBMISSIONS as any)
-
-                if (MOCK_LANGUAGES.length > 0) {
-                    setSelectedLanguage(MOCK_LANGUAGES[0].name)
-                }
-
-                // Verify the slug matches the challenge
-                if (MOCK_CHALLENGE.slug && slug !== MOCK_CHALLENGE.slug) {
-                    window.history.replaceState(null, "", `/challenge/${MOCK_CHALLENGE.slug}`)
-                }
-
+        const fetchChallenge = async () => {
+            try {
+                setChallenge(challengeData?.challenge || null);
+            } catch (error) {
+                console.error("Error fetching challenge:", error)
+                toast.error("Failed to load challenge")
+            } finally {
                 setLoading(false)
-            }, 500)
+            }
         }
 
-        if (challengeId) {
-            loadStaticData()
+        if(challengeData) {
+            fetchChallenge()
         }
-    }, [challengeId, slug])
+    }, [challengeData, slug])
 
+    // Fetch submissions for this challenge
     const fetchSubmissions = async () => {
-        if (!challengeId || !userData) return
+        if (!challenge || !session?.user?.id) return
 
         setSubmissionsLoading(true)
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/submissions?challengeId=${challenge.id}&userId=${session.user.id}`)
 
-        // Simulate API delay
-        setTimeout(() => {
-            setSubmissions(MOCK_SUBMISSIONS as any)
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+
+            if (data.success && Array.isArray(data.submissions)) {
+                setSubmissions(data.submissions)
+            } else {
+                throw new Error("Invalid submissions data received")
+            }
+        } catch (error) {
+            console.error("Error fetching submissions:", error)
+            toast.error("Failed to load submissions")
+        } finally {
             setSubmissionsLoading(false)
-        }, 300)
+        }
     }
 
     // Handle language change
@@ -252,6 +175,7 @@ const ChallengePage = () => {
         setCode("")
     }
 
+    // Run code
     const handleRunCode = async () => {
         if (!challenge || !selectedLanguage) return
 
@@ -262,88 +186,114 @@ const ChallengePage = () => {
         setActiveConsoleTab("testcase")
 
         try {
-            const testCase = challenge.testCases?.[0]
+            const testCase = challenge.testCases.find((tc) => !tc.isHidden)
             if (!testCase) {
                 toast.error("No test cases available to run")
                 return
             }
 
-            // Simulate API delay and mock results
-            setTimeout(() => {
-                const mockResults = [
-                    {
-                        input: "nums = [2,7,11,15], target = 9",
-                        expectedOutput: "[0,1]",
-                        actualOutput: "[0,1]",
-                        passed: true,
-                        runtime: 45,
-                        memory: 10,
-                    },
-                    {
-                        input: "nums = [3,2,4], target = 6",
-                        expectedOutput: "[1,2]",
-                        actualOutput: "[2,1]",
-                        passed: false,
-                        runtime: 52,
-                        memory: 12,
-                    },
-                ]
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/execute`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    code,
+                    language: selectedLanguage,
+                    challengeId: challenge.id,
+                    testCaseId: testCase.id,
+                }),
+            })
 
-                setTestResults(mockResults as any)
-                setRuntime(Math.floor(Math.random() * 100) + 50)
-                setMemory(Math.floor(Math.random() * 20) + 30)
-                setIsRunning(false)
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                if (errorData.compilationError) {
+                    toast.error("Compilation Error")
+                } else {
+                    toast.error(errorData.message || errorData.error || "Failed to run code")
+                }
+                return
+            }
 
-                toast.success("Code executed successfully")
-            }, 1500)
+            const data = await response.json()
+
+            setTestResults(data.testResults)
+            setRuntime(data.runtime)
+            setMemory(data.memory)
+
+            if (data.compilationError) {
+                toast.error("Code compiled with warnings")
+            }
         } catch (error) {
             console.error("Error running code:", error)
             toast.error("Failed to run code")
+        } finally {
             setIsRunning(false)
         }
     }
 
+    // Submit solution
     const handleSubmitSolution = async () => {
-        if (!challenge || !selectedLanguage || !userData) return
+        if (!challenge || !selectedLanguage || !session?.user?.id) {
+            if (!session?.user?.id) {
+                toast.error("Please sign in to submit solutions")
+                router.push("/login")
+                return
+            }
+            return
+        }
 
         setIsSubmitting(true)
         setSubmissionStatus(null)
         setActiveConsoleTab("result")
 
         try {
-            // Simulate submission processing
-            setTimeout(() => {
-                const isAccepted = Math.random() > 0.3 // 70% chance of acceptance
-                const status = isAccepted ? "ACCEPTED" : "WRONG_ANSWER"
+            const response = await fetch("/api/execute", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    code,
+                    language: selectedLanguage,
+                    challengeId: challenge.id,
+                    isSubmission: true,
+                    userId: session.user.id,
+                }),
+            })
 
-                setSubmissionStatus(status)
-                setRuntime(Math.floor(Math.random() * 100) + 40)
-                setMemory(Math.floor(Math.random() * 25) + 25)
+            const data = await response.json()
 
-                // Add new submission to list
-                const newSubmission = {
-                    id: Date.now().toString(),
-                    code: "// Mock code",
-                    status,
-                    language: { name: selectedLanguage },
-                    createdAt: new Date().toISOString(),
-                    runtime: Math.floor(Math.random() * 100) + 40,
-                    memory: Math.floor(Math.random() * 25) + 25,
-                    score: 0,
-                }
-
-                setSubmissions((prev) => [newSubmission, ...prev])
-                setIsSubmitting(false)
-
-                if (isAccepted) {
-                    toast.success("Solution accepted!")
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                if (data.compilationError) {
+                    toast.error("Compilation Error: " + (data.message || "Unknown compilation error"))
+                    setSubmissionStatus("COMPILATION_ERROR")
                 } else {
-                    toast.error("Wrong answer - try again")
+                    toast.error(data.message || data.error || "Failed to submit solution")
+                    setSubmissionStatus("FAILED")
                 }
-            }, 2000)
+                return
+            }
+
+            setTestResults(data.testResults)
+            setRuntime(data.runtime)
+            setMemory(data.memory)
+            setSubmissionStatus(data.allPassed ? "ACCEPTED" : "FAILED")
+
+            if (data.allPassed) {
+                toast.success(`Solution accepted! All ${data.totalTests} test cases passed.`)
+            } else {
+                toast.error(`Solution failed. ${data.passedTests}/${data.totalTests} test cases passed.`)
+            }
+
+            // Refresh submissions list after submission
+            await fetchSubmissions()
         } catch (error) {
             console.error("Error submitting solution:", error)
             toast.error("Failed to submit solution")
+            setSubmissionStatus("FAILED")
+        } finally {
             setIsSubmitting(false)
         }
     }
@@ -497,14 +447,14 @@ int main() {
         }
     }, [selectedLanguage, code])
 
-    // Fetch submissions when user data is available
+    // Fetch submissions when user session is available
     useEffect(() => {
-        if (userData && challengeId) {
+        if (session?.user?.id && challenge) {
             fetchSubmissions()
         }
-    }, [userData, challengeId])
+    }, [session, challenge])
 
-    if (loading) {
+    if (loading || status === "loading") {
         return (
             <div
                 className={`flex justify-center items-center h-screen transition-colors duration-200 ${isDark ? "bg-gray-900" : "bg-gray-50"
@@ -605,27 +555,27 @@ int main() {
                                     <TabsList className="bg-transparent h-12 p-0 space-x-1">
                                         <TabsTrigger
                                             value="description"
-                                            className={`border-b-2 border-transparent data-[state=active]:border-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
-                                                    ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
-                                                    : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
+                                            className={`border-b-2 border-transparent data-[state=active]:border-b-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
+                                                ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
+                                                : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
                                                 }`}
                                         >
                                             Description
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="solutions"
-                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
-                                                    ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
-                                                    : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
+                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-b-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
+                                                ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
+                                                : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
                                                 }`}
                                         >
                                             Solutions
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="submissions"
-                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
-                                                    ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
-                                                    : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
+                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-b-blue-500 rounded-none px-4 py-3 text-sm font-medium duration-200 ${isDark
+                                                ? "text-gray-300 bg-gray-800 data-[state=active]:text-blue-400 data-[state=active]:bg-gray-800"
+                                                : "text-gray-600 bg-white data-[state=active]:text-blue-600 data-[state=active]:bg-white"
                                                 }`}
                                         >
                                             Submissions
@@ -647,10 +597,6 @@ int main() {
                                             <div className="flex items-center space-x-1">
                                                 <ThumbsDown className="w-4 h-4" />
                                                 <span>{challenge.dislikes || 0}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <Star className="w-4 h-4" />
-                                                <span>Add to List</span>
                                             </div>
                                             <div className="flex items-center space-x-1">
                                                 <Share className="w-4 h-4" />
@@ -675,9 +621,8 @@ int main() {
                                         <div
                                             className={`leading-relaxed transition-colors duration-200 ${isDark ? "text-gray-300" : "text-gray-700"
                                                 }`}
-                                        >
-                                            {challenge.description}
-                                        </div>
+                                            dangerouslySetInnerHTML={{ __html: challenge.description }}
+                                        />
                                     </div>
 
                                     {/* Examples */}
@@ -703,12 +648,12 @@ int main() {
                                                             >
                                                                 Input:
                                                             </span>
-                                                            <code
+                                                            <pre
                                                                 className={`text-sm font-mono transition-colors duration-200 ${isDark ? "text-gray-100" : "text-gray-900"
                                                                     }`}
                                                             >
                                                                 {testCase.input}
-                                                            </code>
+                                                            </pre>
                                                         </div>
                                                         <div className="space-x-2">
                                                             <span
@@ -717,12 +662,12 @@ int main() {
                                                             >
                                                                 Output:
                                                             </span>
-                                                            <code
+                                                            <pre
                                                                 className={`text-sm font-mono transition-colors duration-200 ${isDark ? "text-gray-100" : "text-gray-900"
                                                                     }`}
                                                             >
                                                                 {testCase.output}
-                                                            </code>
+                                                            </pre>
                                                         </div>
                                                         {testCase.explanation && (
                                                             <div className="space-x-2">
@@ -804,8 +749,8 @@ int main() {
                                                     variant="ghost"
                                                     size="sm"
                                                     className={`transition-colors duration-200 ${isDark
-                                                            ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
-                                                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                                                        ? "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+                                                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
                                                         }`}
                                                 >
                                                     <RotateCcw className="w-4 h-4 mr-1" />
@@ -910,8 +855,8 @@ int main() {
                                                     document.querySelector('[data-tab="code"]')?.scrollIntoView({ behavior: "smooth" })
                                                 }
                                                 className={`transition-colors duration-200 ${isDark
-                                                        ? "bg-blue-600 hover:bg-blue-700 text-white"
-                                                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                                    : "bg-blue-600 hover:bg-blue-700 text-white"
                                                     }`}
                                             >
                                                 Start Coding
@@ -938,12 +883,12 @@ int main() {
                                     value={selectedLanguage}
                                     onChange={handleLanguageChange}
                                     className={`px-3 py-1 border rounded text-sm transition-colors duration-200 ${isDark
-                                            ? "border-gray-600 bg-gray-700 text-white focus:border-blue-500"
-                                            : "border-gray-300 bg-white text-gray-900 focus:border-blue-500"
+                                        ? "border-gray-600 bg-gray-700 text-white focus:border-blue-500"
+                                        : "border-gray-300 bg-white text-gray-900 focus:border-blue-500"
                                         }`}
                                 >
-                                    {languages.map((lang: any) => (
-                                        <option key={lang.name} value={lang.name}>
+                                    {languages.map((lang) => (
+                                        <option key={lang.id} value={lang.name}>
                                             {lang.name}
                                         </option>
                                     ))}
@@ -996,18 +941,18 @@ int main() {
                                                     <TabsList className="bg-transparent h-8 p-0 space-x-4">
                                                         <TabsTrigger
                                                             value="testcase"
-                                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent rounded-none px-0 py-1 text-xs font-medium transition-colors duration-200 ${isDark
-                                                                    ? "text-gray-300 data-[state=active]:text-blue-400"
-                                                                    : "text-gray-600 data-[state=active]:text-blue-600"
+                                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-b-blue-500 data-[state=active]:bg-transparent rounded-none px-0 py-1 text-xs font-medium transition-colors duration-200 ${isDark
+                                                                ? "text-gray-300 data-[state=active]:text-blue-400"
+                                                                : "text-gray-600 data-[state=active]:text-blue-600"
                                                                 }`}
                                                         >
                                                             Testcase
                                                         </TabsTrigger>
                                                         <TabsTrigger
                                                             value="result"
-                                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent rounded-none px-0 py-1 text-xs font-medium transition-colors duration-200 ${isDark
-                                                                    ? "text-gray-300 data-[state=active]:text-blue-400"
-                                                                    : "text-gray-600 data-[state=active]:text-blue-600"
+                                                            className={`bg-transparent border-b-2 border-transparent data-[state=active]:border-b-blue-500 data-[state=active]:bg-transparent rounded-none px-0 py-1 text-xs font-medium transition-colors duration-200 ${isDark
+                                                                ? "text-gray-300 data-[state=active]:text-blue-400"
+                                                                : "text-gray-600 data-[state=active]:text-blue-600"
                                                                 }`}
                                                         >
                                                             Test Result
@@ -1019,8 +964,8 @@ int main() {
                                                             disabled={isRunning || !code.trim()}
                                                             size="sm"
                                                             className={`h-7 px-3 text-xs transition-colors duration-200 ${isDark
-                                                                    ? "bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:bg-gray-800 disabled:text-gray-500"
-                                                                    : "bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50 disabled:text-gray-400"
+                                                                ? "bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:bg-gray-800 disabled:text-gray-500"
+                                                                : "bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50 disabled:text-gray-400"
                                                                 }`}
                                                         >
                                                             {isRunning ? (
@@ -1069,7 +1014,7 @@ int main() {
                                                                     className={`mt-1 p-2 rounded text-sm font-mono transition-colors duration-200 ${isDark ? "bg-gray-700 text-gray-200" : "bg-gray-50 text-gray-800"
                                                                         }`}
                                                                 >
-                                                                    {testCase.input}
+                                                                    <pre>{testCase.input}</pre>
                                                                 </div>
                                                             </div>
                                                             <div>
@@ -1083,7 +1028,7 @@ int main() {
                                                                     className={`mt-1 p-2 rounded text-sm font-mono transition-colors duration-200 ${isDark ? "bg-gray-700 text-gray-200" : "bg-gray-50 text-gray-800"
                                                                         }`}
                                                                 >
-                                                                    {testCase.output}
+                                                                    <pre>{testCase.output}</pre>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1094,12 +1039,12 @@ int main() {
                                                 {submissionStatus && (
                                                     <div
                                                         className={`mb-4 p-3 rounded-lg flex items-center space-x-2 transition-colors duration-200 ${submissionStatus === "ACCEPTED"
-                                                                ? isDark
-                                                                    ? "bg-green-900/30 text-green-300 border border-green-700"
-                                                                    : "bg-green-50 text-green-800 border border-green-200"
-                                                                : isDark
-                                                                    ? "bg-red-900/30 text-red-300 border border-red-700"
-                                                                    : "bg-red-50 text-red-800 border border-red-200"
+                                                            ? isDark
+                                                                ? "bg-green-900/30 text-green-300 border border-green-700"
+                                                                : "bg-green-50 text-green-800 border border-green-200"
+                                                            : isDark
+                                                                ? "bg-red-900/30 text-red-300 border border-red-700"
+                                                                : "bg-red-50 text-red-800 border border-red-200"
                                                             }`}
                                                     >
                                                         {submissionStatus === "ACCEPTED" ? (
@@ -1136,12 +1081,12 @@ int main() {
                                                                 <div
                                                                     key={index}
                                                                     className={`p-3 rounded border-l-4 transition-colors duration-200 ${result.passed
-                                                                            ? isDark
-                                                                                ? "border-l-green-500 bg-green-900/20 text-green-300"
-                                                                                : "border-l-green-500 bg-green-50 text-green-800"
-                                                                            : isDark
-                                                                                ? "border-l-red-500 bg-red-900/20 text-red-300"
-                                                                                : "border-l-red-500 bg-red-50 text-red-800"
+                                                                        ? isDark
+                                                                            ? "border-l-green-500 bg-green-900/20 text-green-300"
+                                                                            : "border-l-green-500 bg-green-50 text-green-800"
+                                                                        : isDark
+                                                                            ? "border-l-red-500 bg-red-900/20 text-red-300"
+                                                                            : "border-l-red-500 bg-red-50 text-red-800"
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center space-x-2 mb-2">

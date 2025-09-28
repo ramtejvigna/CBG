@@ -32,9 +32,7 @@ const GridModel = ({ onClose }: GridModelProps) => {
       title: "Challenges",
       items: [
         { name: "Contests", icon: <Code className="w-4 h-4" />, href: "/contests" },
-        { name: "Algorithms", icon: <Code className="w-4 h-4" />, href: "/challenges" },
-        { name: "Data Structures", icon: <Terminal className="w-4 h-4" />, href: "/challenges" },
-        { name: "Databases", icon: <Terminal className="w-4 h-4" />, href: "/challenges" },
+        { name: "Problems", icon: <Code className="w-4 h-4" />, href: "/challenges" },
       ],
     },
     {

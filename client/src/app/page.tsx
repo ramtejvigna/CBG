@@ -54,7 +54,7 @@ const Home = () => {
 
   const fetchChallenges = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/home`);
       if (!response.ok) {
         throw new Error('Failed to fetch challenges');
       }
@@ -154,13 +154,13 @@ const Home = () => {
 
             <div className="flex flex-wrap gap-4">
               <Link
-                href={user ? "/challenge" : "/signup"}
+                href={user ? "/challenges" : "/signup"}
                 className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 rounded-lg font-semibold flex items-center gap-2 transition-transform hover:translate-y-[-2px] shadow-lg shadow-orange-900/30"
               >
                 Join Battle <Swords className="w-4 h-4" />
               </Link>
-              <Link // Link to the practice page (if available, otherwise /challenge)
-                href="/challenge"
+              <Link // Link to the practice page (if available, otherwise /challenges)
+                href="/challenges"
                 className={`px-6 py-3 ${theme === "dark" && "bg-gray-800"} border border-gray-700 rounded-lg font-semibold flex items-center gap-2 transition-all hover:bg-gray-750 hover:border-orange-500`}
               >
                 Practice Now <Terminal className="w-4 h-4" />
@@ -231,7 +231,7 @@ const Home = () => {
               <Zap className="text-yellow-500 mr-2" />
               Active Challenges
             </h2>
-            <Link href="/challenge">
+            <Link href="/challenges">
               <button className="text-orange-500 flex items-center hover:text-orange-400 transition-colors">
                 View All <ArrowRight className="ml-1 w-4 h-4" />
               </button>
