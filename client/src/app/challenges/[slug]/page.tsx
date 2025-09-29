@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Split from "react-split"
@@ -9,7 +9,6 @@ import { useTheme } from "@/context/ThemeContext"
 import {
     ChevronLeft,
     Share,
-    Star,
     ThumbsUp,
     ThumbsDown,
     Play,
@@ -27,6 +26,8 @@ import toast from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useChallenge from "@/hooks/useChallenge"
+import useCodeExecution from "@/hooks/useCodeExecution"
+import useLanguages from "@/hooks/useLanguages"
 
 // Types
 interface TestCase {
@@ -35,11 +36,6 @@ interface TestCase {
     output: string
     isHidden: boolean
     explanation?: string
-}
-
-interface Language {
-    id: string
-    name: string
 }
 
 interface Submission {
@@ -97,6 +93,8 @@ const ChallengePage = () => {
     const { data: session, status } = useSession()
 
     const challengeData = useChallenge(slug as string);
+    const { executeCode, isExecuting } = useCodeExecution();
+    const { languages } = useLanguages();
 
     const isDark = theme === "dark"
     // State
@@ -104,15 +102,7 @@ const ChallengePage = () => {
     const [loading, setLoading] = useState(true)
     const [selectedLanguage, setSelectedLanguage] = useState<string>('Java')
     const [code, setCode] = useState<string>("")
-    const [languages, setLanguages] = useState<Language[]>([
-        { id: "1", name: "Java" },
-        { id: "2", name: "C++" },
-        { id: "3", name: "C" },
-        { id: "4", name: "Python" },
-    ])
     const [testResults, setTestResults] = useState<TestResult[] | null>(null)
-    const [isRunning, setIsRunning] = useState(false)
-    const [isSubmitting, setIsSubmitting] = useState(false)
     const [submissionStatus, setSubmissionStatus] = useState<string | null>(null)
     const [runtime, setRuntime] = useState<number | null>(null)
     const [memory, setMemory] = useState<number | null>(null)
@@ -142,8 +132,16 @@ const ChallengePage = () => {
         }
     }, [challengeData, slug])
 
+    // Set default language when languages are loaded
+    useEffect(() => {
+        if (languages && languages.length > 0 && !selectedLanguage) {
+            // Set first available language as default
+            setSelectedLanguage(languages[0].name);
+        }
+    }, [languages, selectedLanguage]);
+
     // Fetch submissions for this challenge
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = useCallback(async () => {
         if (!challenge || !session?.user?.id) return
 
         setSubmissionsLoading(true)
@@ -167,7 +165,7 @@ const ChallengePage = () => {
         } finally {
             setSubmissionsLoading(false)
         }
-    }
+    }, [challenge, session?.user?.id])
 
     // Handle language change
     const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -180,56 +178,32 @@ const ChallengePage = () => {
     const handleRunCode = async () => {
         if (!challenge || !selectedLanguage) return
 
-        setIsRunning(true)
         setTestResults(null)
         setRuntime(null)
         setMemory(null)
         setActiveConsoleTab("testcase")
 
         try {
-            const testCase = challenge.testCases.find((tc) => !tc.isHidden)
-            if (!testCase) {
-                toast.error("No test cases available to run")
-                return
-            }
+            const result = await executeCode(code, selectedLanguage, challenge.id, false);
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/execute`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    code,
-                    language: selectedLanguage,
-                    challengeId: challenge.id,
-                    testCaseId: testCase.id,
-                }),
-            })
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}))
-                if (errorData.compilationError) {
+            if (result.success) {
+                setTestResults(result.testResults || []);
+                setRuntime(result.runtime || null);
+                setMemory(result.memory || null);
+                
+                if (result.compilationError) {
+                    toast.error("Code compiled with warnings")
+                }
+            } else {
+                if (result.compilationError) {
                     toast.error("Compilation Error")
                 } else {
-                    toast.error(errorData.message || errorData.error || "Failed to run code")
+                    toast.error(result.message || "Failed to run code")
                 }
-                return
-            }
-
-            const data = await response.json()
-
-            setTestResults(data.testResults)
-            setRuntime(data.runtime)
-            setMemory(data.memory)
-
-            if (data.compilationError) {
-                toast.error("Code compiled with warnings")
             }
         } catch (error) {
             console.error("Error running code:", error)
             toast.error("Failed to run code")
-        } finally {
-            setIsRunning(false)
         }
     }
 
@@ -244,58 +218,39 @@ const ChallengePage = () => {
             return
         }
 
-        setIsSubmitting(true)
         setSubmissionStatus(null)
         setActiveConsoleTab("result")
 
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/execute`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    code,
-                    language: selectedLanguage,
-                    challengeId: challenge.id,
-                    isSubmission: true,
-                    userId: session.user.id,
-                }),
-            })
+            const result = await executeCode(code, selectedLanguage, challenge.id, true);
 
-            const data = await response.json()
+            if (result.success) {
+                setTestResults(result.testResults || []);
+                setRuntime(result.runtime || null);
+                setMemory(result.memory || null);
+                setSubmissionStatus(result.allPassed ? "ACCEPTED" : "FAILED");
 
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}))
-                if (data.compilationError) {
-                    toast.error("Compilation Error: " + (data.message || "Unknown compilation error"))
+                if (result.allPassed) {
+                    toast.success(`Solution accepted! All ${result.totalTests} test cases passed.`)
+                } else {
+                    toast.error(`Solution failed. ${result.passedTests}/${result.totalTests} test cases passed.`)
+                }
+
+                // Refresh submissions list after submission
+                await fetchSubmissions()
+            } else {
+                if (result.compilationError) {
+                    toast.error("Compilation Error: " + (result.message || "Unknown compilation error"))
                     setSubmissionStatus("COMPILATION_ERROR")
                 } else {
-                    toast.error(data.message || data.error || "Failed to submit solution")
+                    toast.error(result.message || "Failed to submit solution")
                     setSubmissionStatus("FAILED")
                 }
-                return
             }
-
-            setTestResults(data.testResults)
-            setRuntime(data.runtime)
-            setMemory(data.memory)
-            setSubmissionStatus(data.allPassed ? "ACCEPTED" : "FAILED")
-
-            if (data.allPassed) {
-                toast.success(`Solution accepted! All ${data.totalTests} test cases passed.`)
-            } else {
-                toast.error(`Solution failed. ${data.passedTests}/${data.totalTests} test cases passed.`)
-            }
-
-            // Refresh submissions list after submission
-            await fetchSubmissions()
         } catch (error) {
             console.error("Error submitting solution:", error)
             toast.error("Failed to submit solution")
             setSubmissionStatus("FAILED")
-        } finally {
-            setIsSubmitting(false)
         }
     }
 
@@ -962,14 +917,14 @@ int main() {
                                                     <div className="flex items-center space-x-2">
                                                         <Button
                                                             onClick={handleRunCode}
-                                                            disabled={isRunning || !code.trim()}
+                                                            disabled={isExecuting || !code.trim()}
                                                             size="sm"
                                                             className={`h-7 px-3 text-xs transition-colors duration-200 ${isDark
                                                                 ? "bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:bg-gray-800 disabled:text-gray-500"
                                                                 : "bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50 disabled:text-gray-400"
                                                                 }`}
                                                         >
-                                                            {isRunning ? (
+                                                            {isExecuting ? (
                                                                 <RotateCcw className="w-3 h-3 mr-1 animate-spin" />
                                                             ) : (
                                                                 <Play className="w-3 h-3 mr-1" />
@@ -978,11 +933,11 @@ int main() {
                                                         </Button>
                                                         <Button
                                                             onClick={handleSubmitSolution}
-                                                            disabled={isSubmitting || !code.trim()}
+                                                            disabled={isExecuting || !code.trim()}
                                                             size="sm"
                                                             className="bg-green-600 hover:bg-green-700 text-white h-7 px-3 text-xs disabled:bg-green-400 transition-colors duration-200"
                                                         >
-                                                            {isSubmitting ? (
+                                                            {isExecuting ? (
                                                                 <RotateCcw className="w-3 h-3 mr-1 animate-spin" />
                                                             ) : (
                                                                 <Upload className="w-3 h-3 mr-1" />

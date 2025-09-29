@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useTheme } from "@/context/ThemeContext"
-import { Search, Filter, Code, Clock, Users, Star, Tag, ChevronUp, ChevronDown } from "lucide-react"
+import { Search, Filter, Code, Users, Star, Tag, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -69,7 +69,7 @@ const ChallengesPage = () => {
         })
 
         return filtered.sort((a, b) => {
-            let aValue: any, bValue: any
+            let aValue: string | number, bValue: string | number
 
             switch (sortBy) {
                 case 'title':

@@ -85,7 +85,7 @@ export const useChallenges = (options: UseChallengesOptions = {}): UseChallenges
             }
 
             const queryString = params.toString();
-            const url = `${process.env.NEXT_PUBLIC_API_URL}/api/challenges/filter${queryString ? '?' + queryString : ''}`;
+            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges/filter${queryString ? '?' + queryString : ''}`;
 
             const response = await fetch(url);
             if (!response.ok) {
@@ -103,7 +103,7 @@ export const useChallenges = (options: UseChallengesOptions = {}): UseChallenges
 
     const fetchCategories = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/categories`);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/categories`);
             if (!response.ok) {
                 throw new Error(`Failed to fetch categories: ${response.statusText}`);
             }

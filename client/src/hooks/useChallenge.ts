@@ -57,7 +57,7 @@ export const useChallenge = (slug: string): UseChallengeReturn => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/slug/${encodeURIComponent(slug)}`);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges/slug/${encodeURIComponent(slug)}`);
             if (response.ok) {
                 const apiChallenge = await response.json();
                 const mappedChallenge: Challenge = {

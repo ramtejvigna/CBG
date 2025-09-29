@@ -3,10 +3,14 @@ export const API_CONFIG = {
     BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
     ENDPOINTS: {
         CHALLENGES: '/api/challenges',
+        CATEGORIES: '/api/categories',
+        CONTESTS: '/api/contests',
         LANGUAGES: '/api/languages',
         EXECUTE: '/api/execute',
         AUTH: '/api/auth',
-        USERS: '/api/users',
+        USERS: '/api',
+        ACTIVITY: '/api/activity',
+        LEADERBOARD: '/api/leaderboard'
     }
 };
 
@@ -50,4 +54,23 @@ export const apiRequest = async (
         console.error(`API request failed for ${url}:`, error);
         throw error;
     }
+};
+
+// Helper function for authenticated API requests
+export const authenticatedApiRequest = async (
+    endpoint: string,
+    options: RequestInit = {}
+): Promise<any> => {
+    const token = localStorage.getItem('auth-token');
+    
+    const authenticatedOptions: RequestInit = {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            ...options.headers,
+        },
+    };
+
+    return apiRequest(endpoint, authenticatedOptions);
 };

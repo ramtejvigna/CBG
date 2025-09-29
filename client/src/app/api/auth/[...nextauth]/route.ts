@@ -9,6 +9,7 @@ declare module "next-auth" {
       id: string;
       name?: string | null;
       email?: string | null;
+      username?: string | null;
       image?: string | null;
       needsOnboarding?: boolean;
     }
@@ -18,6 +19,7 @@ declare module "next-auth" {
     id: string;
     name?: string | null;
     email?: string | null;
+    username?: string | null;
     image?: string | null;
     needsOnboarding?: boolean;
   }
@@ -80,9 +82,10 @@ const handler = NextAuth({
       }
     },
     async session({ session, user }) {
+      console.log(user)
       if (session?.user) {
         session.user.id = user.id;
-        session.user.needsOnboarding = user.needsOnboarding;
+        session.user.username = user.username;
       }
       return session;
     },

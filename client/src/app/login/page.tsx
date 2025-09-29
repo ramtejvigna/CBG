@@ -397,7 +397,7 @@ export default function AuthForm() {
                         </div>
                         
                         <p className="text-sm text-gray-400 relative z-10">
-                            Don't have an account?
+                                                                        Don&apos;t have an account?
                             <button
                                 type="button"
                                 onClick={() => router.push("/signup")}

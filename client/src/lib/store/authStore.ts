@@ -5,12 +5,35 @@ export interface User {
     id: string;
     email: string;
     username: string;
+    name?: string;
     fullName?: string;
     preferredLanguage?: string;
     image?: string;
     role?: string;
     level?: number;
     points?: number;
+    userProfile?: {
+        id: string;
+        bio?: string;
+        level: number;
+        points: number;
+        solved: number;
+        rank?: number;
+        streakDays: number;
+        preferredLanguage: string;
+        badges: Array<{
+            id: string;
+            name: string;
+            description: string;
+            iconType: string;
+            points: number;
+        }>;
+        languages: Array<{
+            id: string;
+            name: string;
+            percentage: number;
+        }>;
+    };
 }
 
 interface AuthState {
@@ -41,15 +64,24 @@ export const useAuthStore = create<AuthState>()(
 
             checkAuth: async () => {
                 try {
-                    const response = await fetch('/api/auth/session');
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.user) {
-                            set({ user: data.user });
+                    const token = localStorage.getItem('auth-token');
+                    if (token) {
+                        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/me`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const userData = await response.json();
+                            set({ user: userData });
+                        } else {
+                            localStorage.removeItem('auth-token');
                         }
                     }
                 } catch (err) {
                     console.error('Auth check failed:', err);
+                    localStorage.removeItem('auth-token');
                 } finally {
                     set({ loading: false });
                 }
@@ -58,7 +90,7 @@ export const useAuthStore = create<AuthState>()(
             login: async (email: string, password: string) => {
                 set({ loading: true, error: null });
                 try {
-                    const response = await fetch('/api/auth/login', {
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password }),
@@ -69,8 +101,13 @@ export const useAuthStore = create<AuthState>()(
                     if (!response.ok) {
                         throw new Error(data.message || 'Login failed');
                     }
-
-                    set({ user: data.user });
+                    
+                    if (data.success && data.token) {
+                        localStorage.setItem('auth-token', data.token);
+                        set({ user: data.user });
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
                 } catch (err) {
                     set({ error: err instanceof Error ? err.message : 'An unexpected error occurred' });
                     throw err;
@@ -82,10 +119,18 @@ export const useAuthStore = create<AuthState>()(
             signup: async (userData: Partial<User> & { password: string }) => {
                 set({ loading: true, error: null });
                 try {
-                    const response = await fetch('/api/auth/signup', {
+                    const signupData = {
+                        email: userData.email,
+                        password: userData.password,
+                        username: userData.username || userData.email?.split('@')[0] || 'user',
+                        fullName: userData.fullName || userData.username || 'User',
+                        preferredLanguage: userData.preferredLanguage || 'javascript'
+                    };
+                    
+                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/signup`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(userData),
+                        body: JSON.stringify(signupData),
                     });
 
                     const data = await response.json();
@@ -94,7 +139,12 @@ export const useAuthStore = create<AuthState>()(
                         throw new Error(data.message || 'Signup failed');
                     }
 
-                    set({ user: data.user });
+                    if (data.success && data.token) {
+                        localStorage.setItem('auth-token', data.token);
+                        set({ user: data.user });
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
                 } catch (err) {
                     set({ error: err instanceof Error ? err.message : 'An unexpected error occurred' });
                     throw err;
@@ -106,9 +156,18 @@ export const useAuthStore = create<AuthState>()(
             logout: async () => {
                 set({ loading: true });
                 try {
-                    await fetch('/api/auth/logout', { method: 'POST' });
+                    const token = localStorage.getItem('auth-token');
+                    if (token) {
+                        await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                    }
+                    localStorage.removeItem('auth-token');
                     set({ user: null });
-                    localStorage.removeItem('user');
                 } catch (err) {
                     console.error('Logout failed:', err);
                 } finally {
