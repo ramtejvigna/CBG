@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { User, Book } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
+import { useThemeStore } from '@/lib/store/themeStore';
 
 interface SearchResult {
     challenges: {
@@ -27,7 +27,7 @@ interface SearchResultsProps {
 }
 
 const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) => {
-    const { theme } = useTheme();
+    const { theme } = useThemeStore();
 
     if (!results && !loading) return null;
 

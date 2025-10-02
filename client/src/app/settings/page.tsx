@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuthStore } from '@/lib/store/authStore';
 import Loader from '@/components/Loader';
 import {
     Calendar,
@@ -21,12 +21,12 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
-import { useTheme } from '@/context/ThemeContext';
+import { useThemeStore } from '@/lib/store/themeStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const Settings = () => {
-    const { user } = useAuth();
-    const { theme, setTheme } = useTheme();
+    const { user } = useAuthStore();
+    const { theme, toggleTheme } = useThemeStore();
     const { userData, loading: profileLoading, fetchUserProfileById, updateUserProfile } = useUserProfile();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -48,10 +48,6 @@ const Settings = () => {
     // Helper function to check if theme is dark
     const isDark = theme === 'dark';
     
-    // Helper function to toggle theme
-    const toggleTheme = () => {
-        setTheme(theme === 'dark' ? 'light' : 'dark');
-    };
 
     useEffect(() => {
         if (user?.id && !userData && !profileLoading && !hasFetchedRef.current) {

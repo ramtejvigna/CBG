@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { generateChallengeUrl } from "@/lib/challengeUtils"
-import useChallenges, { Challenge } from "@/hooks/useChallenges"
+import useChallenges from "@/hooks/useChallenges"
+import { Challenge } from "@/lib/store/challengesStore"
 
 type SortableField = 'title' | 'difficulty' | 'points' | '_count'
 
@@ -86,8 +87,8 @@ const ChallengesPage = () => {
                     bValue = b.points
                     break
                 case '_count':
-                    aValue = a._count.submissions
-                    bValue = b._count.submissions
+                    aValue = a._count?.submissions ?? 0
+                    bValue = b._count?.submissions ?? 0
                     break
                 default:
                     aValue = a.title.toLowerCase()
@@ -289,7 +290,7 @@ const ChallengesPage = () => {
                                                     <div className="flex items-center justify-center gap-1">
                                                         <Users className="w-4 h-4 text-orange-500" />
                                                         <span className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                                            {challenge._count.submissions.toLocaleString()}
+                                                            {challenge._count?.submissions.toLocaleString()}
                                                         </span>
                                                     </div>
                                                 </td>
@@ -297,7 +298,7 @@ const ChallengesPage = () => {
                                                     <div className="flex items-center justify-center gap-1">
                                                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                                                         <span className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                                            {challenge._count.likes}
+                                                            {challenge._count?.likes}
                                                         </span>
                                                     </div>
                                                 </td>

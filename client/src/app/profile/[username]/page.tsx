@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { useTheme } from '../../../context/ThemeContext';
+import { useThemeStore } from '../../../lib/store/themeStore';
 import Loader from '../../../components/Loader';
 import {
   Trophy,
@@ -66,7 +66,7 @@ const formatDate = (dateString: string) => {
 
 const ProfilePage = () => {
   const { username } = useParams();
-  const { theme } = useTheme();
+  const { theme } = useThemeStore();
   const isDark = theme === 'dark';
 
   // Utility function to calculate total points

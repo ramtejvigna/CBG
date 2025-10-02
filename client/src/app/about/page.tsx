@@ -191,25 +191,6 @@ const AboutPage = () => {
                     </div>
                 </div>
             </div>
-
-            {/* CTA Section */}
-            <div className="py-16 bg-gray-900">
-                <div className="container mx-auto px-8 max-w-4xl">
-                    <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-10 relative overflow-hidden border border-gray-600">
-                        <div className="absolute inset-0 opacity-10 mix-blend-overlay"></div>
-                        <div className="relative z-10 text-center">
-                            <h2 className="text-3xl font-bold mb-4">Ready to Join the Battle?</h2>
-                            <p className="text-gray-300 mb-8 max-w-2xl mx-auto">
-                                Start your journey today and transform from a coder to a warrior. Challenge yourself, earn certifications, and join our community of passionate developers.
-                            </p>
-                            <Link href="#" className="inline-flex items-center bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-white px-8 py-4 rounded-lg font-medium hover:shadow-lg hover:shadow-orange-900/20 transition-all duration-300 text-lg">
-                                Start Your First Battle
-                                <Zap size={20} className="ml-2" />
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 };

@@ -3,10 +3,10 @@
 import React from 'react';
 import Link from 'next/link';
 import { Github, Twitter, Linkedin, Code, Heart } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
+import { useThemeStore } from '@/lib/store/themeStore';
 
 const Footer = () => {
-    const { theme } = useTheme(); 
+    const { theme } = useThemeStore(); 
 
     return (
         <footer className={`${theme === 'dark' ? 'bg-black text-gray-300' : 'bg-white text-black'} border-t border-gray-800 mt-auto`}>

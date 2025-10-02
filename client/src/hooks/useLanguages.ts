@@ -1,9 +1,5 @@
-import { useState, useEffect } from 'react';
-
-export interface Language {
-  id: string;
-  name: string;
-}
+import { useEffect } from 'react';
+import { useLanguagesStore, Language } from '../lib/store/languagesStore';
 
 interface UseLanguagesReturn {
   languages: Language[];
@@ -13,42 +9,17 @@ interface UseLanguagesReturn {
 }
 
 export const useLanguages = (): UseLanguagesReturn => {
-  const [languages, setLanguages] = useState<Language[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchLanguages = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/languages`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch languages');
-      }
-
-      const data = await response.json();
-      
-      if (data.success && data.languages) {
-        setLanguages(data.languages);
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load languages');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    languages,
+    loading,
+    error,
+    fetchLanguages,
+    refetch
+  } = useLanguagesStore();
 
   useEffect(() => {
     fetchLanguages();
-  }, []);
-
-  const refetch = async () => {
-    await fetchLanguages();
-  };
+  }, [fetchLanguages]);
 
   return {
     languages,

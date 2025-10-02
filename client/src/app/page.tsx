@@ -15,8 +15,8 @@ import {
   Github,
   Award,
 } from "lucide-react"
-import { useAuth } from "@/context/AuthContext"
-import { useTheme } from "@/context/ThemeContext"
+import { useAuthStore } from "@/lib/store/authStore"
+import { useThemeStore } from "@/lib/store/themeStore"
 import Link from "next/link"
 
 interface Challenge {
@@ -47,8 +47,8 @@ const Home = () => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { theme } = useTheme()
-  const { user } = useAuth()
+  const { theme } = useThemeStore()
+  const { user } = useAuthStore()
 
   const exampleCode = `function findWinner(scores) {\n  return scores\n    .sort((a, b) => b.points - a.points)\n    .map(player => player.name)[0];\n}`
 

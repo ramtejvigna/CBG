@@ -2,14 +2,14 @@
 
 import { useState } from "react"
 import NavBar from "@/components/NavBar"
-import { useTheme } from "@/context/ThemeContext"
+import { useThemeStore } from "@/lib/store/themeStore"
 import { Calendar, Clock, Users, Trophy, Star, ChevronRight, Filter, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const ContestsPage = () => {
-    const { theme } = useTheme()
+    const { theme } = useThemeStore()
     const [activeTab, setActiveTab] = useState("upcoming")
     const [searchQuery, setSearchQuery] = useState("")
 

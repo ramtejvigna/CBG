@@ -4,9 +4,9 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Grip, LogIn, UserPlus, LogOut, Moon, Sun } from 'lucide-react';
 import GridModel from './GridModel';
-import { useAuth } from '@/context/AuthContext';
+import { useAuthStore } from '@/lib/store/authStore';
+import { useThemeStore } from '@/lib/store/themeStore';
 import Loader from '../Loader';
-import { useTheme } from '@/context/ThemeContext'; // Import the useTheme hook
 import SearchResults from './SearchResults';
 
 interface SearchResult {
@@ -29,14 +29,14 @@ interface SearchResult {
 const NavBar = () => {
     const [searchFocus, setSearchFocus] = useState(false);
     const [gridModel, setGridModel] = useState(false);
-    const { theme, setTheme } = useTheme(); // Use the theme context
+    const { theme, toggleTheme } = useThemeStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
     const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
-    const { user, logout, loading } = useAuth();
+    const { user, logout, loading } = useAuthStore();
 
     const handleSearch = useCallback(async (query: string) => {
         if (!query.trim()) {
@@ -163,7 +163,7 @@ const NavBar = () => {
 
                         {/* Theme Toggler */}
                         <li>
-                            <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className="cursor-pointer transition-colors duration-300">
+                            <button onClick={toggleTheme} className="cursor-pointer transition-colors duration-300">
                                 {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                             </button>
                         </li>

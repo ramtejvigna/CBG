@@ -4,14 +4,14 @@ import Link from "next/link"
 import React, { useEffect, useRef } from "react"
 import { Code, Award, MessageSquare, BarChart2, Terminal, Zap, Star, Activity } from "lucide-react"
 import { useChallengesStore } from "@/lib/store/challengesStore"
-import { useTheme } from "@/context/ThemeContext"
+import { useThemeStore } from "@/lib/store/themeStore"
 
 interface GridModelProps {
   onClose: () => void;
 }
 
 const GridModel = ({ onClose }: GridModelProps) => {
-  const { theme } = useTheme();
+  const { theme } = useThemeStore();
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

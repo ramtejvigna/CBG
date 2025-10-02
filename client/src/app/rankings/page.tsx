@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useTheme } from "@/context/ThemeContext";
+import { useThemeStore } from "@/lib/store/themeStore";
 import { Skeleton } from "@/components/ui/skeleton"; 
 
 interface User {
@@ -22,7 +22,7 @@ interface User {
 }
 
 export default function RankingsPage() {
-    const { theme } = useTheme();
+    const { theme } = useThemeStore();
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [topUsers, setTopUsers] = useState<User[]>([]);

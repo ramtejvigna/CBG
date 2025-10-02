@@ -1,13 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
-import { AuthProvider } from "@/context/AuthContext"
 import { Toaster } from "react-hot-toast";
 import { SessionProvider } from "next-auth/react";
-import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthRouter } from "@/components/AuthRouter";
 
 export default function ClientLayout({
     children,
@@ -15,10 +13,6 @@ export default function ClientLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
-
-    // Get fetch functions from stores
-    // const { fetchChallenges } = useChallengesStore();
-    // const { fetchRankings } = useRankingsStore();
 
     // Define routes where you don't want to show NavBar and Footer
     const noNavBarFooterRoutes = ["/login", "/signup", "/admin"];
@@ -28,34 +22,14 @@ export default function ClientLayout({
         (route) => pathname === route || pathname.startsWith(`${route}/`)
     );
 
-
-    // Preload common data
-    // useEffect(() => {
-    //     // Preload challenges and rankings data
-    //     const preloadData = async () => {
-    //         try {
-    //             await Promise.all([
-    //                 fetchChallenges(),
-    //                 fetchRankings()
-    //             ]);
-    //         } catch (error) {
-    //             console.error("Error preloading data:", error);
-    //         }
-    //     };
-
-    //     preloadData();
-    // }, [fetchChallenges, fetchRankings]);
-
     return (
         <SessionProvider>
-            <AuthProvider>
-                <ThemeProvider>
-                    {shouldShowNavBarFooter && <NavBar />}
-                    {children}
-                    {shouldShowNavBarFooter && <Footer />}
-                </ThemeProvider>
+            <AuthRouter>
+                {shouldShowNavBarFooter && <NavBar />}
+                {children}
+                {shouldShowNavBarFooter && <Footer />}
                 <Toaster position="top-right" />
-            </AuthProvider>
+            </AuthRouter>
         </SessionProvider>
     );
 }

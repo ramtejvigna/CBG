@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import Editor, { Monaco } from "@monaco-editor/react";
-import { useTheme } from "@/context/ThemeContext";
+import { useThemeStore } from "@/lib/store/themeStore";
 
 interface CodeEditorProps {
     value: string;
@@ -21,7 +21,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     readOnly = false,
 }) => {
     const editorRef = useRef<any>(null);
-    const { theme: appTheme } = useTheme();
+        const { theme: appTheme } = useThemeStore();
 
     // Map language to monaco editor language
     const getMonacoLanguage = (lang?: string): string => {
