@@ -9,6 +9,7 @@ import activityRoutes from "./routes/activityRoutes.js"
 import contestRoutes from "./routes/contestRoutes.js";
 import languageRoutes from "./routes/languageRoutes.js";
 import executeRoutes from "./routes/executeRoutes.js";
+import { initializeRankingSystem, shutdownRankingSystem } from "./lib/rankingScheduler.js";
 
 const app = express();
 
@@ -46,6 +47,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
+    
+    // Initialize ranking system
+    await initializeRankingSystem();
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('Received SIGINT, shutting down gracefully...');
+    shutdownRankingSystem();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('Received SIGTERM, shutting down gracefully...');
+    shutdownRankingSystem();
+    process.exit(0);
 });

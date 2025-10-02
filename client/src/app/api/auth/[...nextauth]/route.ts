@@ -82,7 +82,6 @@ const handler = NextAuth({
       }
     },
     async session({ session, user }) {
-      console.log(user)
       if (session?.user) {
         session.user.id = user.id;
         session.user.username = user.username;

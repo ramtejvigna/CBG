@@ -1,5 +1,10 @@
 import { type Request, type Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { 
+    getLeaderboard as getLeaderboardRanking, 
+    getUserRankInfo, 
+    updateAllUserRanks 
+} from '../lib/rankingSystem.js';
 
 export const getUserSubmissions = async (req: Request, res: Response) => {
     try {
@@ -292,9 +297,9 @@ export const getUserProfile = async (req: Request, res: Response) => {
 export const getAllUsers = async (req: Request, res: Response) => {
     try {
         // Check if user is admin
-        // if (req.user?.role !== 'ADMIN') {
-        //     return res.status(403).json({ message: 'Not authorized' });
-        // }
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
 
         const users = await prisma.user.findMany({
             select: {
@@ -325,34 +330,24 @@ export const getAllUsers = async (req: Request, res: Response) => {
         });
 
         res.json(users);
-    } catch (error) {
+    } catch (
+        error) {
         res.status(500).json({ message: 'Internal server error', error });
     }
 };
 
 export const getLeaderboard = async (req: Request, res: Response) => {
     try {
-        const topUsers = await prisma.userProfile.findMany({
-            take: 10,
-            where: { user: { role: 'USER' } },
-            select: {
-                points: true,
-                user: {
-                    select: {
-                        id: true,
-                        username: true,
-                        image: true
-                    }
-                }
-            },
-            orderBy: [
-                { points: 'desc' },
-                { solved: 'desc' }
-            ]
-        });
+        const { limit = 10, offset = 0 } = req.query;
+        
+        const leaderboard = await getLeaderboardRanking(
+            parseInt(limit as string), 
+            parseInt(offset as string)
+        );
 
-        res.json(topUsers);
+        res.json(leaderboard);
     } catch (error) {
+        console.error('Error fetching leaderboard:', error);
         res.status(500).json({ message: 'Internal server error', error });
     }
 };
@@ -403,6 +398,55 @@ export const getUserActivity = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error fetching user activity:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const getUserRanking = async (req: Request, res: Response) => {
+    try {
+        const { username } = req.params;
+        
+        if (!username) {
+            return res.status(400).json({ message: 'Username is required' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { username },
+            select: { id: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const rankInfo = await getUserRankInfo(user.id);
+        
+        if (!rankInfo) {
+            return res.status(404).json({ message: 'User ranking information not found' });
+        }
+
+        res.json(rankInfo);
+    } catch (error) {
+        console.error('Error fetching user ranking:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const refreshRankings = async (req: Request, res: Response) => {
+    try {
+        // Check if user is admin (optional - you might want to restrict this)
+        // if (req.user?.role !== 'ADMIN') {
+        //     return res.status(403).json({ message: 'Admin access required' });
+        // }
+
+        await updateAllUserRanks();
+        
+        res.json({ 
+            success: true, 
+            message: 'Rankings refreshed successfully' 
+        });
+    } catch (error) {
+        console.error('Error refreshing rankings:', error);
         res.status(500).json({ message: 'Internal server error', error });
     }
 };

@@ -1,7 +1,90 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { dockerExecutor } from '../lib/dockerExecutor.js';
-import { SubmissionStatus } from '@prisma/client';
+import { SubmissionStatus, ActivityType } from '@prisma/client';
+import { updateUserRank } from '../lib/rankingSystem.js';
+
+// Helper function to update user points for successful submission
+const updateUserPointsForSubmission = async (userId: string, challengeId: string, challengePoints: number) => {
+    try {
+        // Check if this is the user's first successful submission for this challenge
+        const previousSuccessfulSubmission = await prisma.submission.findFirst({
+            where: {
+                userId: userId,
+                challengeId: challengeId,
+                status: SubmissionStatus.ACCEPTED
+            }
+        });
+
+        // Only award points if this is the first successful submission for this challenge
+        if (!previousSuccessfulSubmission) {
+            // Get challenge details for activity record
+            const challenge = await prisma.challenge.findUnique({
+                where: { id: challengeId },
+                select: { title: true, difficulty: true }
+            });
+
+            if (!challenge) {
+                console.error('Challenge not found when updating points');
+                return;
+            }
+
+            // Use a transaction to ensure data consistency
+            await prisma.$transaction(async (tx) => {
+                // Update user profile points and solved count
+                await tx.userProfile.upsert({
+                    where: { userId: userId },
+                    update: {
+                        points: {
+                            increment: challengePoints
+                        },
+                        solved: {
+                            increment: 1
+                        }
+                    },
+                    create: {
+                        userId: userId,
+                        rank: null,
+                        bio: "No bio provided",
+                        phone: null,
+                        solved: 1,
+                        preferredLanguage: "javascript",
+                        level: 1,
+                        points: challengePoints,
+                        streakDays: 0
+                    }
+                });
+
+                // Create activity record
+                await tx.activity.create({
+                    data: {
+                        userId: userId,
+                        type: ActivityType.CHALLENGE,
+                        name: `${challenge.title}`,
+                        result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge`,
+                        points: challengePoints,
+                        time: new Date().toLocaleTimeString()
+                    }
+                });
+            });
+
+            console.log(`Awarded ${challengePoints} points to user ${userId} for solving challenge ${challengeId}`);
+            
+            // Update user rank after points change
+            try {
+                await updateUserRank(userId);
+                console.log(`Updated rank for user ${userId}`);
+            } catch (rankError) {
+                console.error('Error updating user rank:', rankError);
+                // Don't fail the submission if rank update fails
+            }
+        } else {
+            console.log(`User ${userId} already solved challenge ${challengeId}, no additional points awarded`);
+        }
+    } catch (error) {
+        console.error('Error updating user points for submission:', error);
+    }
+};
 
 // Execute code in a sandboxed Docker environment
 export const executeCode = async (req: Request, res: Response) => {
@@ -153,6 +236,11 @@ export const executeCode = async (req: Request, res: Response) => {
                         testResults: testResults
                     }
                 });
+
+                // Award points and create activity if submission is successful
+                if (overallStatus === SubmissionStatus.ACCEPTED) {
+                    await updateUserPointsForSubmission(userId, challengeId, challenge.points);
+                }
             } catch (dbError) {
                 console.error('Error saving submission:', dbError);
                 // Don't fail the request if submission saving fails
