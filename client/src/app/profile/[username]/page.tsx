@@ -72,10 +72,10 @@ const ProfilePage = () => {
   // Utility function to calculate total points
   const calculateTotalPoints = (userData: any) => {
     if (userData?.pointsBreakdown) {
-      return userData.pointsBreakdown.challenges + 
-             userData.pointsBreakdown.contests + 
-             userData.pointsBreakdown.badges + 
-             userData.pointsBreakdown.discussions;
+      return userData.pointsBreakdown.challenges +
+        userData.pointsBreakdown.contests +
+        userData.pointsBreakdown.badges +
+        userData.pointsBreakdown.discussions;
     }
     return userData?.userProfile?.points || 0;
   };
@@ -102,7 +102,7 @@ const ProfilePage = () => {
         setError(null);
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}`);
-        
+
         if (!response.ok) {
           throw new Error('User not found');
         }
@@ -128,7 +128,7 @@ const ProfilePage = () => {
       setSubmissionsLoading(true);
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}/submissions?page=${page}&limit=20`);
-      
+
       if (response.ok) {
         const data = await response.json();
         if (page === 1) {
@@ -153,7 +153,7 @@ const ProfilePage = () => {
       setActivityLoading(true);
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}/activity?limit=10`);
-      
+
       if (response.ok) {
         const data = await response.json();
         setRecentActivity(data.activities);
@@ -219,7 +219,7 @@ const ProfilePage = () => {
       </div>
     );
   }
-  
+
 
   // Theme-aware styles
   const bgColor = isDark ? 'bg-gray-900' : 'bg-white';
@@ -252,11 +252,9 @@ const ProfilePage = () => {
               <div>
                 <h1 className="text-2xl font-bold">
                   {userData?.name}
-                  <span className={`ml-2 opacity-75 font-normal text-xl ${secondaryText}`}>({userData?.username})</span>
                 </h1>
-                <div className={`flex items-center ${secondaryText} text-sm mt-1`}>
-                  <Calendar className="w-4 h-4 mr-1" />
-                  <span>Joined {userData?.createdAt ? new Date(userData.createdAt).toLocaleDateString() : ''}</span>
+                <div className={`flex items-center ${secondaryText} text-sm mt-2`}>
+                  <p className={`${secondaryText}`}>{userData?.userProfile?.bio || 'No bio available'}</p>
                 </div>
               </div>
             </div>
@@ -283,7 +281,7 @@ const ProfilePage = () => {
             <div className="flex md:flex-col gap-2 ml-auto mt-2 md:mt-0">
               <button
                 className={`p-2 ${cardBg} ${hoverBg} border ${borderColor} rounded-lg transition-colors`}
-                              onClick={() => window.location.href = '/challenges'}
+                onClick={() => window.location.href = '/settings'}
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -331,50 +329,18 @@ const ProfilePage = () => {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
-                <h2 className="text-lg font-bold mb-4">About</h2>
-                <p className={`${secondaryText}`}>{userData?.userProfile?.bio || 'No bio available'}</p>
-
-                <div className="mt-6">
-                  <h3 className={`text-sm font-semibold ${secondaryText} mb-3`}>Preferred Languages</h3>
-                  {hasLanguages ? (
-                    <div className="flex flex-wrap gap-2">
-                      {allLanguages.map((lang, i) => (
-                        <div key={lang.id || i} className={`flex justify-between text-sm rounded-lg p-2 ${isDark ? 'bg-gray-700' : 'bg-orange-100'}`}>
-                          <span className={`font-medium ${lang.isPreferred ? 'text-orange-500' : ''}`}>
-                            {lang.name}
-                            {lang.isPreferred && ' (Preferred)'}
-                          </span>
-                          {lang.percentage !== undefined && (
-                            <span className={`ml-2 ${secondaryText}`}>
-                              {lang.percentage}%
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={`rounded-lg p-4 flex flex-col items-center text-center ${isDark ? 'bg-gray-750' : 'bg-gray-100'}`}>
-                      <Code2 className="w-8 h-8 text-gray-500 mb-2" />
-                      <p className={secondaryText}>No programming languages recorded yet</p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        Start solving problems to track your preferred languages
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
+            <div className="lg:col-span-2 space-y-8 h-full">
+              <div className={`rounded-xl p-6 border h-full ${borderColor} ${cardBg}`}>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-bold">Recent Activity</h2>
-                  <button
-                    className="text-orange-500 text-sm flex items-center hover:text-orange-400 transition-colors"
-                    onClick={() => window.location.href = '/activity-feed'}
-                  >
-                    View All <ChevronRight className="w-4 h-4 ml-1" />
-                  </button>
+                  {recentActivity.length > 0 && (
+                    <button
+                      className="text-orange-500 text-sm flex items-center hover:text-orange-400 transition-colors"
+                      onClick={() => window.location.href = '/activity-feed'}
+                    >
+                      View All <ChevronRight className="w-4 h-4 ml-1" />
+                    </button>
+                  )}
                 </div>
 
                 {activityLoading ? (
@@ -414,20 +380,16 @@ const ProfilePage = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className={`rounded-lg p-6 flex flex-col items-center text-center ${isDark ? 'bg-gray-750' : 'bg-gray-100'}`}>
-                    <div className={`w-16 h-16 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mb-3`}>
-                      <Activity className="w-8 h-8 text-gray-500" />
+                  <div className='flex items-center justify-center h-full'>
+                    <div className={`rounded-lg p-6 flex flex-col items-center text-center ${isDark ? 'bg-gray-750' : 'bg-gray-100'}`}>
+                      <div className={`w-16 h-16 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mb-3`}>
+                        <Activity className="w-8 h-8 text-gray-500" />
+                      </div>
+                      <h3 className={`text-lg font-medium ${textColor}`}>No Recent Activity</h3>
+                      <p className={`${secondaryText} text-sm mt-2 mb-3`}>
+                        Start solving challenges to track your activity
+                      </p>
                     </div>
-                    <h3 className={`text-lg font-medium ${textColor}`}>No Recent Activity</h3>
-                    <p className={`${secondaryText} text-sm mt-2 mb-3`}>
-                      Start solving challenges to track your activity
-                    </p>
-                    <button
-                      className="mt-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white text-sm font-medium transition-colors"
-                      onClick={() => window.location.href = '/challenges'}
-                    >
-                      Explore Challenges
-                    </button>
                   </div>
                 )}
               </div>
@@ -466,7 +428,7 @@ const ProfilePage = () => {
                     const nextLevelThreshold = (currentLevel + 1) * 1000;
                     const progressInCurrentLevel = totalPoints % 1000;
                     const progressPercentage = Math.min(100, (progressInCurrentLevel / 1000) * 100);
-                    
+
                     return (
                       <>
                         <div className="flex justify-between text-sm mb-1">
@@ -485,7 +447,7 @@ const ProfilePage = () => {
                         </div>
                       </>
                     );
-                  })()} 
+                  })()}
                 </div>
               </div>
 
@@ -524,24 +486,6 @@ const ProfilePage = () => {
                     </p>
                   </div>
                 )}
-              </div>
-
-              <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
-                <div className="flex items-center">
-                  <Github className="w-6 h-6 mr-3 text-gray-400" />
-                  <h2 className="text-lg font-bold">GitHub</h2>
-                </div>
-                <p className={`${secondaryText} mt-3 text-sm`}>
-                  {userData?.githubConnected ?
-                    `Connected to ${userData.githubUsername || 'GitHub'}. Your GitHub activity is being tracked.` :
-                    "Connect your GitHub account to showcase your projects and track your coding activity."}
-                </p>
-                <button
-                  className={`w-full mt-4 px-4 py-2 border ${borderColor} rounded-lg text-sm font-medium ${hoverBg} transition-colors`}
-                  onClick={handleGithubConnectionClick}
-                >
-                  {userData?.githubConnected ? "Disconnect GitHub" : "Connect GitHub"}
-                </button>
               </div>
             </div>
           </div>

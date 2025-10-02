@@ -9,7 +9,8 @@ import {
     getAllUsers,
     getLeaderboard,
     getUserRanking,
-    refreshRankings
+    refreshRankings,
+    updateUserProfile
 } from '../controllers/userControllers.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -24,6 +25,7 @@ router.get('/profile/:username/submissions', getUserSubmissionsByUsername);
 router.get('/profile/:username/contests', getUserContests);
 router.get('/profile/:username/ranking', getUserRanking);
 router.get('/:userId', getUserDetails);
+router.put('/:userId/profile', updateUserProfile);
 
 // Protected routes
 router.get('/submissions', authenticate, getUserSubmissions);

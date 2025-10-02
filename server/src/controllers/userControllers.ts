@@ -527,3 +527,81 @@ export const getUserContests = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Internal server error', error });
     }
 };
+
+export const updateUserProfile = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.params;
+        const { name, email, image, profile } = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+        
+        // Check if user exists
+        const existingUser = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { userProfile: true }
+        });
+
+        if (!existingUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if email is being changed and if it's already taken
+        if (email && email !== existingUser.email) {
+            const emailExists = await prisma.user.findFirst({
+                where: {
+                    email,
+                    NOT: { id: userId }
+                }
+            });
+
+            if (emailExists) {
+                return res.status(400).json({ message: 'Email already in use' });
+            }
+        }
+
+        // Update user data
+        const updateData: any = {};
+        if (name) updateData.name = name;
+        if (email) updateData.email = email;
+        if (image !== undefined) updateData.image = image;
+
+        // Update profile data
+        const profileUpdateData: any = {};
+        if (profile?.phone !== undefined) profileUpdateData.phone = profile.phone;
+        if (profile?.bio !== undefined) profileUpdateData.bio = profile.bio;
+        if (profile?.preferredLanguage) profileUpdateData.preferredLanguage = profile.preferredLanguage;
+
+        // Perform the update
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                ...updateData,
+                userProfile: Object.keys(profileUpdateData).length > 0 ? {
+                    update: profileUpdateData
+                } : undefined
+            },
+            include: {
+                userProfile: {
+                    include: {
+                        badges: true,
+                        languages: true
+                    }
+                }
+            }
+        });
+
+        // Remove password from response
+        const { password, ...userWithoutPassword } = updatedUser;
+        
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: userWithoutPassword
+        });
+    } catch (error) {
+        console.error('Error updating user profile:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
