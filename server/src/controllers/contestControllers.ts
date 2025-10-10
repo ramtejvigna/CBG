@@ -309,7 +309,7 @@ export const createContest = async (req: Request, res: Response) => {
             endsAt, 
             registrationEnd,
             tags,
-            points,               // <-- updated
+            points,
             maxParticipants,
             challenges 
         } = req.body;
@@ -516,3 +516,23 @@ export const getContestDetails = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error fetching contest details' });
     }
 };
+
+export const getContests = async (req: Request, res: Response) => {
+    try {
+        const contests = await prisma.contest.findMany({
+            include: {
+                _count: {
+                    select: { participants: true }
+                }
+            },
+            orderBy: {
+                startsAt: 'asc'
+            }
+        });
+
+        const sanitizedContests = contests.map(({ id, createdAt, updatedAt, ...remainingData }) => remainingData);
+        res.json(sanitizedContests);
+    } catch (error) {
+        res.status(500).json({ message: 'Error while fetching contests' })
+    }
+}

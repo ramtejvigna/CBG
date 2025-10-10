@@ -6,6 +6,8 @@ import Footer from "@/components/Footer";
 import { Toaster } from "react-hot-toast";
 import { SessionProvider } from "next-auth/react";
 import { AuthRouter } from "@/components/AuthRouter";
+import { useEffect } from "react";
+import { migrateAllStores } from "@/lib/migrateStorage";
 
 export default function ClientLayout({
     children,
@@ -13,6 +15,12 @@ export default function ClientLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+
+    // Use effect to run storage migration once when the component mounts
+    useEffect(() => {
+        // Migrate all stores on application startup
+        migrateAllStores();
+    }, []);
 
     // Define routes where you don't want to show NavBar and Footer
     const noNavBarFooterRoutes = ["/login", "/signup", "/admin"];

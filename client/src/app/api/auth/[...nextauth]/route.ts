@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { PrismaClient } from "@prisma/client";
+import CredentialsProvider from "next-auth/providers/credentials";
 
 declare module "next-auth" {
   interface Session {
@@ -25,54 +24,103 @@ declare module "next-auth" {
   }
 }
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
-
-const prisma = globalForPrisma.prisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
 const handler = NextAuth({
-  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        try {
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+          
+          const response = await fetch(`${backendUrl}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.success && data.user) {
+            return {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.name,
+              username: data.user.username,
+              image: data.user.image,
+              needsOnboarding: data.needsOnboarding || false,
+            };
+          }
+
+          return null;
+        } catch (error) {
+          console.error('Credentials authorization error:', error);
+          return null;
+        }
+      }
+    }),
   ],
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        if (!process.env.NEXT_PUBLIC_API_URL) {
-          console.error('NEXT_PUBLIC_API_URL is not defined');
-          throw new Error('Server configuration error');
+        // Skip backend call for credentials provider as it's already authenticated
+        if (account?.provider === "credentials") {
+          return true;
         }
 
-        // Make API call to your backend to store/update user data
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            googleId: profile?.sub,
-          }),
-        });
+        // Handle Google OAuth
+        if (account?.provider === "google") {
+          if (!process.env.NEXT_PUBLIC_API_URL) {
+            console.error('NEXT_PUBLIC_API_URL is not defined');
+            throw new Error('Server configuration error');
+          }
 
-        const data = await response.json();
+          // Make API call to your backend to store/update user data
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+              image: user.image,
+              googleId: profile?.sub,
+            }),
+          });
 
-        if (!response.ok) {
-          console.error('Server response:', data);
-          throw new Error(data.message || 'Failed to store user data');
-        }
+          const data = await response.json();
 
-        // If onboarding is needed, we still return true but store this info in the token
-        if (data.needsOnboarding) {
-          user.needsOnboarding = true;
+          if (!response.ok) {
+            console.error('Server response:', data);
+            throw new Error(data.message || 'Failed to store user data');
+          }
+
+          // If onboarding is needed, we still return true but store this info in the token
+          if (data.needsOnboarding) {
+            user.needsOnboarding = true;
+          }
+
+          return true;
         }
 
         return true;
@@ -81,10 +129,19 @@ const handler = NextAuth({
         return false;
       }
     },
-    async session({ session, user }) {
-      if (session?.user) {
-        session.user.id = user.id;
-        session.user.username = user.username;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.username = user.username;
+        token.needsOnboarding = user.needsOnboarding;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session?.user && token) {
+        session.user.id = token.id as string;
+        session.user.username = token.username as string;
+        session.user.needsOnboarding = token.needsOnboarding as boolean;
       }
       return session;
     },

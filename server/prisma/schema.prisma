@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -9,31 +9,30 @@ datasource db {
 }
 
 model User {
-    id                  String       @id @default(cuid())
-    email               String       @unique
-    password            String?
-    name                String?
-    username            String       @unique
-    image               String?
-    emailVerified       DateTime?
-    userProfile         UserProfile?
-    githubConnected     Boolean      @default(false)
-    githubUsername      String?
-    sessions            Session[]
-    accounts            Account[]
-    activites           Activity[]
-    createdAt           DateTime     @default(now())
-    updatedAt           DateTime     @updatedAt
-    role                String       @default("USER")
-    lastActive          DateTime?    
-    adminLead          AdminLead?   // Relation to AdminLead
-
-    createChallenges    Challenge[]  @relation("ChallengeCreator")
-    createdContests     Contest[]    @relation("ContestCreator")
-    contestParticipations ContestParticipant[]
-    submissions         Submission[]
-    challengeAttempts   ChallengeAttempt[]
-    challengeLikes      ChallengeLike[]
+  id                    String               @id @default(cuid())
+  email                 String               @unique
+  password              String?
+  name                  String?
+  username              String               @unique
+  image                 String?
+  emailVerified         DateTime?
+  githubConnected       Boolean              @default(false)
+  githubUsername        String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  role                  String               @default("USER")
+  lastActive            DateTime?
+  accounts              Account[]
+  activites             Activity[]
+  adminLead             AdminLead?
+  createChallenges      Challenge[]          @relation("ChallengeCreator")
+  challengeAttempts     ChallengeAttempt[]
+  challengeLikes        ChallengeLike[]
+  createdContests       Contest[]            @relation("ContestCreator")
+  contestParticipations ContestParticipant[]
+  sessions              Session[]
+  submissions           Submission[]
+  userProfile           UserProfile?
 }
 
 model UserProfile {
@@ -43,33 +42,32 @@ model UserProfile {
   bio               String     @default("No bio provided")
   phone             String?
   solved            Int
-  user              User       @relation(fields: [userId], references: [id])
   preferredLanguage String
   level             Int
   points            Int
   streakDays        Int
-  badges            Badge[]
-  languages         Language[]
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
+  user              User       @relation(fields: [userId], references: [id])
+  badges            Badge[]    @relation("BadgeToUserProfile")
+  languages         Language[] @relation("LanguageToUserProfile")
 }
 
 model Activity {
-    id              String      @id @default(cuid())
-    userId          String
-    user            User        @relation(fields: [userId], references: [id])
-    type            ActivityType
-    name            String
-    result          String
-    points          Int
-    time            String
-    createdAt       DateTime    @default(now())
+  id        String       @id @default(cuid())
+  userId    String
+  type      ActivityType
+  name      String
+  result    String
+  points    Int
+  time      String
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id])
 }
 
 model Account {
   id                String  @id @default(cuid())
   userId            String
-  user              User    @relation(fields: [userId], references: [id])
   type              String
   provider          String
   providerAccountId String
@@ -80,6 +78,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
+  user              User    @relation(fields: [userId], references: [id])
 
   @@unique([provider, providerAccountId])
 }
@@ -88,8 +87,8 @@ model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
   expires      DateTime
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model VerificationToken {
@@ -106,117 +105,109 @@ model Badge {
   description String
   iconType    String
   points      Int
-  users       UserProfile[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  users       UserProfile[] @relation("BadgeToUserProfile")
 }
 
 model Language {
-  id          String        @id @default(cuid())
-  name        String
-  percentage  Float
-  userProfile UserProfile[]
-  challenges  Challenge[]    @relation("ChallengeLanguages")
-  submissions Submission[]
+  id                 String              @id @default(cuid())
+  name               String
+  percentage         Float
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   contestSubmissions ContestSubmission[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  submissions        Submission[]
+  challenges         Challenge[]         @relation("ChallengeLanguages")
+  userProfile        UserProfile[]       @relation("LanguageToUserProfile")
 }
 
 model Contest {
-  id              String            @id @default(cuid())
+  id              String               @id @default(cuid())
   title           String
-  description     String            @db.Text
-  createdAt       DateTime          @default(now())
+  description     String
+  createdAt       DateTime             @default(now())
   startsAt        DateTime
   endsAt          DateTime
   registrationEnd DateTime
-  status          ContestStatus     @default(UPCOMING)
+  status          ContestStatus        @default(UPCOMING)
   creatorId       String
-  creator         User              @relation("ContestCreator", fields: [creatorId], references: [id])
-  participants    ContestParticipant[]
-  challenges      ContestChallenge[]
   tags            String[]
-  points          Int               @default(0)   // <-- Updated (replaces prizeMoney)
-  maxParticipants Int?              // null means unlimited
-  updatedAt       DateTime          @updatedAt
+  maxParticipants Int?
+  updatedAt       DateTime             @updatedAt
+  points          Int                  @default(0)
+  creator         User                 @relation("ContestCreator", fields: [creatorId], references: [id])
+  challenges      ContestChallenge[]
+  participants    ContestParticipant[]
 }
 
 model ContestParticipant {
-  id          String    @id @default(cuid())
+  id          String              @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id])
   contestId   String
-  contest     Contest   @relation(fields: [contestId], references: [id])
-  joinedAt    DateTime  @default(now())
-  points      Int       @default(0)
+  joinedAt    DateTime            @default(now())
+  points      Int                 @default(0)
   rank        Int?
+  contest     Contest             @relation(fields: [contestId], references: [id])
+  user        User                @relation(fields: [userId], references: [id])
   submissions ContestSubmission[]
 
   @@unique([userId, contestId])
 }
 
 model ContestChallenge {
-  id          String    @id @default(cuid())
+  id          String              @id @default(cuid())
   contestId   String
-  contest     Contest   @relation(fields: [contestId], references: [id])
   challengeId String
-  challenge   Challenge @relation(fields: [challengeId], references: [id])
   points      Int
   order       Int
+  challenge   Challenge           @relation(fields: [challengeId], references: [id])
+  contest     Contest             @relation(fields: [contestId], references: [id])
   submissions ContestSubmission[]
-  
+
   @@unique([contestId, challengeId])
 }
 
 model ContestSubmission {
-  id                  String            @id @default(cuid())
-  participantId       String
-  participant         ContestParticipant @relation(fields: [participantId], references: [id])
-  contestChallengeId  String
-  contestChallenge    ContestChallenge  @relation(fields: [contestChallengeId], references: [id])
-  code               String            @db.Text
+  id                 String             @id @default(cuid())
+  participantId      String
+  contestChallengeId String
+  code               String
   languageId         String
-  language           Language          @relation(fields: [languageId], references: [id])
   status             SubmissionStatus
-  points             Int               @default(0)
-  runtime            Int?              // in milliseconds
-  memory             Int?              // in KB
-  createdAt          DateTime          @default(now())
-  testResults        Json?             // Results of each test case
+  points             Int                @default(0)
+  runtime            Int?
+  memory             Int?
+  createdAt          DateTime           @default(now())
+  testResults        Json?
+  contestChallenge   ContestChallenge   @relation(fields: [contestChallengeId], references: [id])
+  language           Language           @relation(fields: [languageId], references: [id])
+  participant        ContestParticipant @relation(fields: [participantId], references: [id])
 
   @@unique([participantId, contestChallengeId])
 }
 
-enum ContestStatus {
-  UPCOMING
-  REGISTRATION_OPEN
-  ONGOING
-  FINISHED
-  CANCELLED
-}
-
 model Challenge {
-  id              String            @id @default(cuid())
-  title           String
-  description     String            @db.Text
-  difficulty      Difficulty
-  points          Int
-  creatorId       String
-  creator         User              @relation("ChallengeCreator", fields: [creatorId], references: [id])
-  testCases       TestCase[]
-  languages       Language[]        @relation("ChallengeLanguages")
-  submissions     Submission[]
-  attempts        ChallengeAttempt[]
-  likes           ChallengeLike[]
+  id                String             @id @default(cuid())
+  title             String
+  description       String
+  difficulty        Difficulty
+  points            Int
+  creatorId         String
+  challengeType     ChallengeType?
+  categoryId        String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  timeLimit         Int
+  memoryLimit       Int
+  category          ChallengeCategory  @relation(fields: [categoryId], references: [id])
+  creator           User               @relation("ChallengeCreator", fields: [creatorId], references: [id])
+  attempts          ChallengeAttempt[]
+  likes             ChallengeLike[]
   contestChallenges ContestChallenge[]
-  category        ChallengeCategory @relation(fields: [categoryId], references: [id])
-  challengeType   ChallengeType?
-  categoryId      String
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  timeLimit       Int               // Time limit in seconds
-  memoryLimit     Int               // Memory limit in MB
+  submissions       Submission[]
+  testCases         TestCase[]
+  languages         Language[]         @relation("ChallengeLanguages")
 }
 
 model ChallengeCategory {
@@ -229,61 +220,70 @@ model ChallengeCategory {
 model TestCase {
   id          String    @id @default(cuid())
   challengeId String
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  input       String    @db.Text
-  output      String    @db.Text
+  input       String
+  output      String
   isHidden    Boolean   @default(false)
-  explanation String?   @db.Text
+  explanation String?
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
 }
 
 model Submission {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   challengeId String
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  code        String    @db.Text
+  code        String
   languageId  String
-  language    Language  @relation(fields: [languageId], references: [id])
   status      SubmissionStatus
-  runtime     Int?      // in milliseconds
-  memory      Int?      // in KB
-  createdAt   DateTime  @default(now())
-  testResults Json?     // Results of each test case
+  runtime     Int?
+  memory      Int?
+  createdAt   DateTime         @default(now())
+  testResults Json?
+  score       Int              @default(0)
+  challenge   Challenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  language    Language         @relation(fields: [languageId], references: [id])
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ChallengeAttempt {
   id          String    @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   challengeId String
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   startedAt   DateTime  @default(now())
   completedAt DateTime?
   successful  Boolean?
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ChallengeLike {
   id          String    @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   challengeId String
-  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  isLike      Boolean   // true for like, false for dislike
+  isLike      Boolean
   createdAt   DateTime  @default(now())
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, challengeId])
 }
 
 model AdminLead {
-    id              String    @id @default(cuid())
-    userId          String    @unique
-    user            User      @relation(fields: [userId], references: [id])
-    department      String
-    responsibilities String[]
-    accessLevel     Int       @default(1)
-    createdAt       DateTime  @default(now())
-    updatedAt       DateTime  @updatedAt
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  department       String
+  responsibilities String[]
+  accessLevel      Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+enum ContestStatus {
+  UPCOMING
+  REGISTRATION_OPEN
+  ONGOING
+  FINISHED
+  CANCELLED
 }
 
 enum ChallengeType {

@@ -66,7 +66,8 @@ interface ProfileState {
 }
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  // Use the correct token key ('auth-token' instead of 'token')
+  const token = localStorage.getItem('auth-token');
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
@@ -76,6 +77,7 @@ const getAuthHeaders = () => {
 export const useProfileStore = create<ProfileState>()(
   persist(
     (set, get) => ({
+      // Add initialization error handling
       userData: null,
       loading: false,
       error: null,
@@ -88,8 +90,9 @@ export const useProfileStore = create<ProfileState>()(
         try {
           set({ loading: true, error: null, lastFetchedId: userId });
 
+          // Use the correct endpoint for user details
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${userId}`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/${userId}`,
             {
               headers: getAuthHeaders(),
             }
@@ -115,8 +118,9 @@ export const useProfileStore = create<ProfileState>()(
         try {
           set({ loading: true, error: null });
 
+          // Use the correct endpoint for user profile by username
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/profile/${username}`,
             {
               headers: getAuthHeaders(),
             }
@@ -142,6 +146,7 @@ export const useProfileStore = create<ProfileState>()(
         try {
           set({ loading: true, error: null });
 
+          // Use the correct endpoint for updating user profile
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${userId}/profile`,
             {
@@ -192,6 +197,19 @@ export const useProfileStore = create<ProfileState>()(
         userData: state.userData,
         lastFetchedId: state.lastFetchedId 
       }),
+      version: 1, // Add version number for state versioning
+      migrate: (persistedState: unknown, version: number) => {
+        if (version === 0) {
+          // Handle migration from version 0 to version 1
+          // Safe type checking and migration
+          const typedState = persistedState as { userData?: UserProfile | null, lastFetchedId?: string | null };
+          return {
+            userData: typedState?.userData || null,
+            lastFetchedId: typedState?.lastFetchedId || null
+          };
+        }
+        return persistedState as { userData: UserProfile | null, lastFetchedId: string | null };
+      }
     }
   )
 )

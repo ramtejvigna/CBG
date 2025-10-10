@@ -13,7 +13,6 @@ declare global {
 
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        console.log(req.headers.authorization?.split(' ')[1]);
         const token = req.headers.authorization?.split(' ')[1];
         
         if (!token) {
@@ -40,16 +39,32 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
 };
 
-export const authorize = (roles: string[]) => {
-    return (req: Request, res: Response, next: NextFunction) => {
-        if (!req.user) {
+export const authenticateAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({ message: 'Not authorized' });
+        const session = await prisma.session.findUnique({
+            where: { sessionToken: token },
+            include: {
+                user: true
+            }
+        });
+
+        if (!session || new Date() > session.expires) {
+            return res.status(401).json({ message: 'Session expired' });
         }
 
+        if(session.user.role !== 'ADMIN') {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        req.user = session.user;
         next();
-    };
-};
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}

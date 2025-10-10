@@ -3,6 +3,12 @@ import prisma from '../lib/prisma.js';
 
 export const getLanguages = async (req: Request, res: Response) => {
     try {
+        const { id } = req.params;
+
+        if(id) {
+            getLanguageById(req, res);
+            return;
+        }
         const languages = await prisma.language.findMany({
             select: {
                 id: true,
@@ -27,7 +33,7 @@ export const getLanguages = async (req: Request, res: Response) => {
     }
 };
 
-export const getLanguageById = async (req: Request, res: Response) => {
+const getLanguageById = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         
@@ -66,3 +72,26 @@ export const getLanguageById = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const addLanguage = async (req: Request, res: Response) => {
+    try {
+        const { name } = req.body;
+
+        await prisma.language.create({
+            data: {
+                name,
+                percentage: 0
+            }
+        })
+
+        return res.status(200).json({
+            success: true,
+            message: 'Successfully added language'
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false, 
+            message: error.message
+        })
+    }
+}

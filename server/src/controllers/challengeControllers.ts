@@ -291,8 +291,12 @@ export const createChallenge = async (req: Request, res: Response) => {
             }
         });
 
-        res.status(201).json(challenge);
+        res.status(201).json({
+            success: true,
+            message: "Successfully created a challenge"
+        });
     } catch (error) {
+        console.error(error)
         res.status(500).json({ message: 'Internal server error', error });
     }
 };

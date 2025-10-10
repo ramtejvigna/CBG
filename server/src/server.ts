@@ -3,6 +3,7 @@ import cors from "cors";
 import { PORT } from "./constants.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js"
 import challengeRoutes from "./routes/challengeRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import activityRoutes from "./routes/activityRoutes.js"
@@ -31,6 +32,7 @@ app.use('/api/contests', contestRoutes);
 app.use('/api/languages', languageRoutes);
 app.use('/api/execute', executeRoutes);
 app.use('/api', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

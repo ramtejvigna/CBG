@@ -18,7 +18,14 @@ export const getUserSubmissions = async (req: Request, res: Response) => {
             where: {
                 userId
             },
-            include: {
+            select: {
+                id: true,
+                code: true,
+                status: true,
+                runtime: true,
+                memory: true,
+                createdAt: true,
+                testResults: true,
                 challenge: {
                     select: {
                         id: true,
@@ -27,7 +34,12 @@ export const getUserSubmissions = async (req: Request, res: Response) => {
                         points: true
                     }
                 },
-                language: true
+                language: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
             },
             orderBy: {
                 createdAt: 'desc'
@@ -121,62 +133,6 @@ export const getUserSubmissionsByUsername = async (req: Request, res: Response) 
     }
 };
 
-export const getUserDetails = async (req: Request, res: Response) => {
-    try {
-        const { userId } = req.params;
-        
-        if (!userId) {
-            return res.status(400).json({ message: 'User ID is required' });
-        }
-
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            include: {
-                userProfile: {
-                    include: {
-                        badges: true,
-                        languages: true
-                    }
-                },
-                submissions: {
-                    select: {
-                        id: true,
-                        status: true,
-                        challenge: {
-                            select: {
-                                id: true,
-                                title: true,
-                                difficulty: true
-                            }
-                        }
-                    },
-                    take: 5,
-                    orderBy: {
-                        createdAt: 'desc'
-                    }
-                },
-                _count: {
-                    select: {
-                        submissions: true,
-                        challengeAttempts: true,
-                        challengeLikes: true
-                    }
-                }
-            }
-        });
-
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Remove sensitive information
-        const { password, ...userWithoutPassword } = user;
-        res.json(userWithoutPassword);
-    } catch (error) {
-        res.status(500).json({ message: 'Internal server error', error });
-    }
-};
-
 export const getUserProfile = async (req: Request, res: Response) => {
     try {
         const { username } = req.params;
@@ -239,26 +195,35 @@ export const getUserProfile = async (req: Request, res: Response) => {
             where: { userId: user.id }
         });
 
-        // Calculate points breakdown from accepted submissions
-        const acceptedSubmissionsWithChallenges = await prisma.submission.findMany({
+        // Calculate challenge points using a safer approach
+        // Get unique challenge IDs from accepted submissions
+        const acceptedSubmissionChallenges = await prisma.submission.findMany({
             where: {
                 userId: user.id,
                 status: 'ACCEPTED'
             },
-            include: {
-                challenge: {
-                    select: {
-                        points: true
-                    }
-                }
+            select: {
+                challengeId: true
             },
-            distinct: ['challengeId'] // Only count each challenge once
+            distinct: ['challengeId']
         });
 
-        const challengePoints = acceptedSubmissionsWithChallenges.reduce(
-            (sum, submission) => sum + submission.challenge.points, 
-            0
-        );
+        // Get challenge points separately
+        let challengePoints = 0;
+        if (acceptedSubmissionChallenges.length > 0) {
+            const challenges = await prisma.challenge.findMany({
+                where: {
+                    id: {
+                        in: acceptedSubmissionChallenges.map(s => s.challengeId)
+                    }
+                },
+                select: {
+                    points: true
+                }
+            });
+            
+            challengePoints = challenges.reduce((sum, challenge) => sum + challenge.points, 0);
+        }
 
         // Calculate contest points
         const contestPoints = await prisma.contestParticipant.aggregate({
@@ -297,9 +262,9 @@ export const getUserProfile = async (req: Request, res: Response) => {
 export const getAllUsers = async (req: Request, res: Response) => {
     try {
         // Check if user is admin
-        if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ message: 'Not authorized' });
-        }
+        // if (req.user?.role !== 'ADMIN') {
+        //     return res.status(403).json({ message: 'Not authorized' });
+        // }
 
         const users = await prisma.user.findMany({
             select: {
@@ -531,6 +496,7 @@ export const getUserContests = async (req: Request, res: Response) => {
 export const updateUserProfile = async (req: Request, res: Response) => {
     try {
         const { userId } = req.params;
+        console.log(req.body)
         const { name, email, image, profile } = req.body;
         
         if (!userId) {

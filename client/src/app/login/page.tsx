@@ -16,13 +16,12 @@ import {
   Terminal, 
   Zap,
 } from 'lucide-react';
+import { useAuthStore } from '@/lib/store';
 import { signIn } from 'next-auth/react';
 
 export default function AuthForm() {
     const router = useRouter();
     const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -35,10 +34,27 @@ export default function AuthForm() {
     const [codePosition, setCodePosition] = useState(0);
     const [isClient, setIsClient] = useState(false);
 
+    const { login, loading, error, user, setError, checkAuth } = useAuthStore();
+
     // Use useEffect to set isClient to true after component mounts
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    // Check if user is already authenticated and redirect
+    useEffect(() => {
+        checkAuth(); // Initialize auth state
+    }, [checkAuth]);
+
+    useEffect(() => {
+        if (user && !loading) {
+            if (user.role === 'ADMIN') {
+                router.push('/admin');
+            } else {
+                router.push('/');
+            }
+        }
+    }, [user, loading, router]);
 
     // Animation for background code typing effect - only run on client
     useEffect(() => {
@@ -97,52 +113,18 @@ export default function AuthForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
         setError(null);
 
         try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-
-            const data = await response.json();
-
-            console.log(data);
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Authentication failed');
-            }
-
-            const result = await signIn("credentials", {
-                redirect: false,
-                email: formData.email,
-                password: formData.password
-            });
-
-            if (result?.error) {
-                throw new Error(result.error);
-            }
-
-            if (!result?.error) {
-                if(data.user.role === 'ADMIN') {
-                    router.push('/admin');
-                } else {
-                    router.push('/');
-                }
-            } else {
-                throw new Error('Authentication failed');
-            }
+            await login(formData.email, formData.password);
+            // Navigation will be handled by the useEffect that watches for user changes
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-        } finally {
-            setLoading(false);
+            // Error is already handled by the authStore
+            console.error('Login failed:', err);
         }
     };
 
     const handleSocialLogin = async (provider: 'google' | 'github') => {
-        setLoading(true);
         try {
             await signIn(provider, { 
                 callbackUrl: '/'  // Redirect to home for existing users
@@ -150,7 +132,6 @@ export default function AuthForm() {
         } catch (err) {
             setError('Failed to initialize social login');
             console.error(err);
-            setLoading(false);
         }
     };
 
@@ -183,6 +164,19 @@ export default function AuthForm() {
 
     return (
         <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+            {/* Show loading spinner while checking auth */}
+            {loading && !isClient && (
+                <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-50">
+                    <div className="flex flex-col items-center">
+                        <svg className="animate-spin h-8 w-8 text-orange-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-gray-400 text-sm">Checking authentication...</p>
+                    </div>
+                </div>
+            )}
+
             {/* Matrix-like code rain - only rendered client-side */}
             {isClient && <MatrixRain />}
             

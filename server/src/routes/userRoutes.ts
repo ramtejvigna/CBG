@@ -2,7 +2,6 @@ import { Router } from 'express';
 import {
     getUserSubmissions,
     getUserSubmissionsByUsername,
-    getUserDetails,
     getUserProfile,
     getUserActivity,
     getUserContests,
@@ -17,18 +16,17 @@ import { authenticate } from '../middleware/auth.js';
 const router = Router();
 
 // Public routes
-router.get('/users', getAllUsers);
 router.get('/leaderboard', getLeaderboard);
 router.get('/profile/:username', getUserProfile);
-router.get('/profile/:username/activity', getUserActivity);
-router.get('/profile/:username/submissions', getUserSubmissionsByUsername);
-router.get('/profile/:username/contests', getUserContests);
 router.get('/profile/:username/ranking', getUserRanking);
-router.get('/:userId', getUserDetails);
 router.put('/:userId/profile', updateUserProfile);
 
 // Protected routes
 router.get('/submissions', authenticate, getUserSubmissions);
 router.post('/rankings/refresh', authenticate, refreshRankings);
+router.get('/users', authenticate, getAllUsers);
+router.get('/profile/:username/activity', authenticate, getUserActivity);
+router.get('/profile/:username/submissions', authenticate, getUserSubmissionsByUsername);
+router.get('/profile/:username/contests', authenticate, getUserContests);
 
 export default router;

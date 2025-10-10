@@ -75,3 +75,33 @@ export const getCategoryById = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Internal server error', error });
     }
 };
+
+export const createCategory = async (req: Request, res: Response) => {
+    try {
+        const { name, description } = req.body;
+
+        if(!name || !description) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields"
+            })
+        }
+
+        await prisma.challengeCategory.create({
+            data: {
+                name,
+                description
+            }
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Category created successfully'
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        })
+    }
+}

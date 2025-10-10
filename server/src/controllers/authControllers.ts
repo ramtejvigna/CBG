@@ -358,3 +358,47 @@ export const logout = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const me = async (req: Request, res: Response) => {
+    try {
+        // This endpoint will only be accessible if the user is authenticated
+        // due to the authentication middleware, so req.user should be available
+        if (!req.user) {
+            return res.status(401).json({
+                success: false,
+                message: 'Not authenticated'
+            });
+        }
+
+        // Get the full user data with profile and badges
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: {
+                userProfile: {
+                    include: {
+                        badges: true,
+                        languages: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Remove sensitive information
+        const { password, ...userWithoutPassword } = user;
+
+        res.status(200).json(userWithoutPassword);
+    } catch (error) {
+        console.error('Auth me error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+};

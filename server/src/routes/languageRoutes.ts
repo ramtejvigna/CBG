@@ -1,12 +1,10 @@
 import { Router } from 'express';
-import { getLanguages, getLanguageById } from '../controllers/languageControllers.js';
+import { addLanguage, getLanguages } from '../controllers/languageControllers.js';
+import { authenticate, authenticateAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
-// Get all languages
-router.get('/', getLanguages);
-
-// Get language by ID
-router.get('/:id', getLanguageById);
+router.get('/', authenticate, getLanguages);
+router.post('/', authenticateAdmin, addLanguage);
 
 export default router;

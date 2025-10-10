@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useProfileStore } from './profileStore'; // Import the profile store
 
 export interface User {
     id: string;
@@ -53,6 +54,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
     persist(
         (set, get) => ({
+            // Add initialization error handling
             user: null,
             loading: true,
             error: null,
@@ -75,6 +77,29 @@ export const useAuthStore = create<AuthState>()(
                         if (response.ok) {
                             const userData = await response.json();
                             set({ user: userData });
+                            
+                            // Also update the profile store with the user data
+                            const profileStore = useProfileStore.getState();
+                            if (profileStore && userData) {
+                                // Initialize profile store with user data
+                                profileStore.setUserData({
+                                    ...userData,
+                                    userProfile: userData.userProfile || {
+                                        id: '',
+                                        bio: '',
+                                        level: 1,
+                                        points: 0,
+                                        solved: 0,
+                                        streakDays: 0,
+                                        preferredLanguage: 'javascript',
+                                        badges: [],
+                                        languages: []
+                                    },
+                                    createdAt: userData.createdAt || new Date().toISOString(),
+                                    role: userData.role || 'USER'
+                                });
+                                profileStore.setLoading(false);
+                            }
                         } else {
                             localStorage.removeItem('auth-token');
                         }
@@ -105,6 +130,30 @@ export const useAuthStore = create<AuthState>()(
                     if (data.success && data.token) {
                         localStorage.setItem('auth-token', data.token);
                         set({ user: data.user });
+                        
+                        // Also update the profile store with the user data
+                        const profileStore = useProfileStore.getState();
+                        if (profileStore && data.user) {
+                            // We're setting the user data in the profile store
+                            profileStore.setUserData({
+                                ...data.user,
+                                userProfile: data.user.userProfile || {
+                                    id: '',
+                                    bio: '',
+                                    level: 1,
+                                    points: 0,
+                                    solved: 0,
+                                    streakDays: 0,
+                                    preferredLanguage: 'javascript',
+                                    badges: [],
+                                    languages: []
+                                },
+                                createdAt: new Date().toISOString(),
+                                role: data.user.role || 'USER'
+                            });
+                            // Update the lastFetchedId directly (no setter for it)
+                            profileStore.setLoading(false);
+                        }
                     } else {
                         throw new Error('Invalid response from server');
                     }
@@ -205,6 +254,18 @@ export const useAuthStore = create<AuthState>()(
         {
             name: 'auth-storage',
             partialize: (state) => ({ user: state.user }),
+            version: 1, // Add version number for state versioning
+            migrate: (persistedState: unknown, version: number) => {
+                if (version === 0) {
+                    // Handle migration from version 0 to version 1
+                    // Safe type checking and migration
+                    const typedState = persistedState as { user?: User | null };
+                    return { 
+                        user: typedState?.user || null 
+                    };
+                }
+                return persistedState as { user: User | null };
+            }
         }
     )
 ) 
