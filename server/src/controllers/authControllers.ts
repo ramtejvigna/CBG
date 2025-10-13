@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
+import { sendPasswordResetEmail } from '../lib/emailService.js';
 
 
 export const signup = async (req: Request, res: Response) => {
@@ -69,6 +70,9 @@ export const signup = async (req: Request, res: Response) => {
         // Remove password from response
         const { password: _, ...userWithoutPassword } = user;
 
+        // Remove large image data from signup response to reduce payload size
+        const { image, ...userWithoutImage } = userWithoutPassword;
+
         // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
@@ -79,7 +83,11 @@ export const signup = async (req: Request, res: Response) => {
         res.status(201).json({
             success: true,
             message: 'Please complete your profile setup',
-            user: userWithoutPassword,
+            user: {
+                ...userWithoutImage,
+                // Only include a flag to indicate if user has an image
+                hasImage: !!user.image
+            },
             token,
             needsOnboarding: true
         });
@@ -132,6 +140,9 @@ export const login = async (req: Request, res: Response) => {
         // Remove password from response
         const { password: _, ...userWithoutPassword } = user;
 
+        // Remove large image data from login response to reduce payload size
+        const { image, ...userWithoutImage } = userWithoutPassword;
+
         // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, email: user.email },
@@ -154,7 +165,11 @@ export const login = async (req: Request, res: Response) => {
         res.status(200).json({
             success: true,
             message: "Login successful",
-            user: userWithoutPassword,
+            user: {
+                ...userWithoutImage,
+                // Only include a flag to indicate if user has an image
+                hasImage: !!user.image
+            },
             token,
         });
     } catch (error) {
@@ -212,9 +227,15 @@ export const googleAuth = async (req: Request, res: Response) => {
             });
 
             // For new Google users, redirect to onboarding to complete profile
+            // Remove large image data from response to reduce payload size
+            const { image: _, ...userWithoutImage } = user;
+            
             res.status(201).json({
                 success: true,
-                user,
+                user: {
+                    ...userWithoutImage,
+                    hasImage: !!user.image
+                },
                 needsOnboarding: true,
                 message: 'Please complete your profile setup'
             });
@@ -248,9 +269,15 @@ export const googleAuth = async (req: Request, res: Response) => {
                 });
             }
 
+            // Remove large image data from response to reduce payload size
+            const { image: _, ...userWithoutImage } = user;
+
             res.status(200).json({
                 success: true,
-                user,
+                user: {
+                    ...userWithoutImage,
+                    hasImage: !!user.image
+                },
                 needsOnboarding: false
             });
         }
@@ -399,6 +426,237 @@ export const me = async (req: Request, res: Response) => {
         res.status(500).json({
             success: false,
             error: 'Internal server error'
+        });
+    }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (!user) {
+            // Don't reveal whether user exists or not for security
+            return res.status(200).json({
+                success: true,
+                message: "If an account with that email exists, a password reset link has been sent"
+            });
+        }
+
+        // Generate reset token
+        const resetToken = randomBytes(32).toString('hex');
+        const hashedToken = await bcrypt.hash(resetToken, 10);
+        
+        // Token expires in 1 hour
+        const expiryDate = new Date();
+        expiryDate.setHours(expiryDate.getHours() + 1);
+
+        // Store the hashed token in database
+        await prisma.passwordResetToken.create({
+            data: {
+                email,
+                token: hashedToken,
+                expires: expiryDate
+            }
+        });
+
+        // Send password reset email
+        const emailSent = await sendPasswordResetEmail(email, resetToken);
+        
+        if (!emailSent) {
+            console.error('Failed to send password reset email to:', email);
+            // Don't fail the request even if email fails to send
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "If an account with that email exists, a password reset link has been sent"
+        });
+    } catch (error) {
+        console.error('Forgot password error:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error while processing forgot password request"
+        });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, token, password, confirmPassword } = req.body;
+
+        // Validate required fields
+        if (!email || !token || !password || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Email, token, password, and confirm password are required"
+            });
+        }
+
+        // Validate password match
+        if (password !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Passwords do not match"
+            });
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 8 characters long"
+            });
+        }
+
+        // Find the reset token
+        const resetTokens = await prisma.passwordResetToken.findMany({
+            where: {
+                email,
+                used: false,
+                expires: {
+                    gt: new Date()
+                }
+            }
+        });
+
+        if (resetTokens.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired reset token"
+            });
+        }
+
+        // Verify the token
+        let validToken = null;
+        for (const dbToken of resetTokens) {
+            const isValid = await bcrypt.compare(token, dbToken.token);
+            if (isValid) {
+                validToken = dbToken;
+                break;
+            }
+        }
+
+        if (!validToken) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired reset token"
+            });
+        }
+
+        // Check if user exists
+        const user = await prisma.user.findUnique({
+            where: { email }
+        });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Hash the new password
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // Update user password and mark token as used
+        await prisma.$transaction([
+            prisma.user.update({
+                where: { email },
+                data: { password: hashedPassword }
+            }),
+            prisma.passwordResetToken.update({
+                where: { id: validToken.id },
+                data: { used: true }
+            })
+        ]);
+
+        // Invalidate all sessions for this user
+        await prisma.session.deleteMany({
+            where: { userId: user.id }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully. Please log in with your new password."
+        });
+
+    } catch (error) {
+        console.error('Reset password error:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error while resetting password"
+        });
+    }
+};
+
+export const validateResetToken = async (req: Request, res: Response) => {
+    try {
+        const { email, token } = req.body;
+
+        if (!email || !token) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and token are required"
+            });
+        }
+
+        // Find valid reset tokens
+        const resetTokens = await prisma.passwordResetToken.findMany({
+            where: {
+                email,
+                used: false,
+                expires: {
+                    gt: new Date()
+                }
+            }
+        });
+
+        if (resetTokens.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired reset token"
+            });
+        }
+
+        // Verify the token
+        let isValidToken = false;
+        for (const dbToken of resetTokens) {
+            const isValid = await bcrypt.compare(token, dbToken.token);
+            if (isValid) {
+                isValidToken = true;
+                break;
+            }
+        }
+
+        if (!isValidToken) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired reset token"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Token is valid"
+        });
+
+    } catch (error) {
+        console.error('Validate reset token error:', error);
+        return res.status(500).json({
+            success: false,
+            message: "Error while validating reset token"
         });
     }
 };

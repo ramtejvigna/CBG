@@ -91,12 +91,6 @@ const ProfilePage = () => {
   const [activityLoading, setActivityLoading] = useState(false);
   const [hasMoreSubmissions, setHasMoreSubmissions] = useState(true);
   const [submissionsPage, setSubmissionsPage] = useState(1);
-  const [token, setToken] = useState<string | null>(null);
-
-  // Get token on client side
-  useEffect(() => {
-    setToken(localStorage.getItem('auth-token'));
-  }, []);
 
   // Fetch user profile data
   useEffect(() => {
@@ -133,6 +127,8 @@ const ProfilePage = () => {
     try {
       setSubmissionsLoading(true);
 
+      const token = localStorage.getItem('auth-token')
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}/submissions?page=${page}&limit=20`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -162,7 +158,9 @@ const ProfilePage = () => {
     try {
       setActivityLoading(true);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}/activity?limit=10`, {
+      const token = localStorage.getItem('auth-token');
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}/activity?limit=5`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

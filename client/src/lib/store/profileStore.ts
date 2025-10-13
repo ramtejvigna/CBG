@@ -42,7 +42,7 @@ export interface UserProfile {
 interface UpdateProfileData {
   name?: string;
   email?: string;
-  image?: string;
+  image?: string | null;
   profile?: {
     phone?: string;
     bio?: string;
@@ -158,6 +158,12 @@ export const useProfileStore = create<ProfileState>()(
 
           if (!response.ok) {
             const errorData = await response.json();
+            
+            // Handle specific error types
+            if (response.status === 413 || errorData.error === 'PAYLOAD_TOO_LARGE') {
+              throw new Error('Image file is too large. Please use an image smaller than 5MB.');
+            }
+            
             throw new Error(errorData.message || `Failed to update profile: ${response.statusText}`);
           }
 

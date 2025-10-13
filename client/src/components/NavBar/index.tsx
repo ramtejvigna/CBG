@@ -6,6 +6,7 @@ import { Search, Grip, LogIn, UserPlus, LogOut, Moon, Sun } from 'lucide-react';
 import GridModel from './GridModel';
 import { useAuthStore } from '@/lib/store/authStore';
 import { useThemeStore } from '@/lib/store/themeStore';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 import Loader from '../Loader';
 import SearchResults from './SearchResults';
 
@@ -172,17 +173,13 @@ const NavBar = () => {
                             <>
                                 <li>
                                     <Link href={`/profile/${user?.username}`} className="relative group">
-                                        <div className="w-12 h-12 border- border-orange-600 uppercase rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-2xl font-bold text-white relative group overflow-hidden">
-                                            {user?.image ? (
-                                                <img
-                                                    src={user?.image}
-                                                    alt={user?.username || 'User'}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                user?.username?.charAt(0)
-                                            )}
-                                        </div>
+                                        <UserAvatar
+                                            userId={user?.id}
+                                            userName={user?.name || user?.username || 'User'}
+                                            hasImage={user?.hasImage}
+                                            size="lg"
+                                            className="border-2 border-orange-600"
+                                        />
                                     </Link>
                                 </li>
                                 <li>

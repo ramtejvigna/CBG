@@ -35,13 +35,18 @@ export const useLanguagesStore = create<LanguagesState>()(
       fetchLanguages: async () => {
         const { lastFetched, languages } = get()
         const currentTime = Date.now()
+        const token = localStorage.getItem('auth-token');
         
         // Only refetch if data is stale or empty
         if (languages.length === 0 || currentTime - lastFetched > REFETCH_THRESHOLD) {
           try {
             set({ loading: true, error: null })
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/languages`)
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/languages`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
             
             if (!response.ok) {
               throw new Error('Failed to fetch languages')

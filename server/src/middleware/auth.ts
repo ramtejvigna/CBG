@@ -19,6 +19,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
             return res.status(401).json({ message: 'Authentication required' });
         }
 
+        console.log(token)
+
         // Get session from database
         const session = await prisma.session.findUnique({
             where: { sessionToken: token },
@@ -27,7 +29,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
             }
         });
 
-        if (!session || new Date() > session.expires) {
+        if (!session || Date.now() > new Date(session.expires).getTime()) {
             return res.status(401).json({ message: 'Session expired' });
         }
 
@@ -54,7 +56,7 @@ export const authenticateAdmin = async (req: Request, res: Response, next: NextF
             }
         });
 
-        if (!session || new Date() > session.expires) {
+        if (!session || Date.now() > new Date(session.expires).getTime()) {
             return res.status(401).json({ message: 'Session expired' });
         }
 

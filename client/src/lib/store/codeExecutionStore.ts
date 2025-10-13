@@ -68,6 +68,7 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
           if (token && isSubmission) {
             try {
               const payload = JSON.parse(atob(token.split('.')[1]))
+              console.log(payload.userId)
               userId = payload.userId
             } catch (err) {
               console.warn('Could not extract user ID from token')

@@ -23,6 +23,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useCurrentUserImage } from '@/hooks/useUserImage';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 const Settings = () => {
     const { user } = useAuthStore();
@@ -33,6 +35,7 @@ const Settings = () => {
     const [activeTab, setActiveTab] = useState('profile');
     const [isEditing, setIsEditing] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [imageUploading, setImageUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const hasFetchedRef = useRef(false);
 
@@ -84,20 +87,94 @@ const Settings = () => {
         }));
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Validate file type
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                toast.error("Please upload a valid image file (JPG, PNG, GIF, or WebP)");
+                return;
+            }
+
+            // Validate file size (5MB limit)
             if (file.size > 5 * 1024 * 1024) {
                 toast.error("Image size should be less than 5MB");
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            setImageUploading(true);
+            
+            try {
+                let imageDataUrl: string;
+                
+                // If image is larger than 1MB, compress it
+                if (file.size > 1024 * 1024) {
+                    toast("Compressing large image...", { duration: 2000 });
+                    imageDataUrl = await compressImage(file, 800, 0.8);
+                } else {
+                    // For smaller images, use original
+                    imageDataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                }
+                
+                setImagePreview(imageDataUrl);
+                setImageUploading(false);
+                toast.success("Image uploaded successfully");
+            } catch (error) {
+                setImageUploading(false);
+                console.error('Error processing image:', error);
+                toast.error("Error processing the image file");
+            }
         }
+    };
+
+    const removeImage = () => {
+        setImagePreview(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        toast.success("Image removed");
+    };
+
+    // Helper function to compress image
+    const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            img.onload = () => {
+                // Calculate new dimensions
+                let { width, height } = img;
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxWidth) {
+                        width = (width * maxWidth) / height;
+                        height = maxWidth;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw and compress
+                ctx?.drawImage(img, 0, 0, width, height);
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(compressedDataUrl);
+            };
+            
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
+        });
     };
 
     const triggerFileInput = () => {
@@ -113,7 +190,7 @@ const Settings = () => {
             const updateData = {
                 name: formData.name,
                 email: formData.email,
-                image: imagePreview || undefined,
+                image: imagePreview === null ? null : imagePreview,
                 profile: {
                     phone: formData.phone,
                     bio: formData.bio,
@@ -296,29 +373,117 @@ const Settings = () => {
                                             </div>
 
                                             <div className='flex flex-col items-center justify-start gap-4'>
-                                                <div className="w-60 h-60 uppercase rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-6xl font-bold text-white relative group overflow-hidden">
-                                                    {imagePreview ? (
-                                                        <img
-                                                            src={imagePreview}
-                                                            alt={userData?.name || 'User'}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        userData?.username?.charAt(0)
+                                                <div className="relative">
+                                                    <div className="w-60 h-60 uppercase rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-6xl font-bold text-white relative group overflow-hidden">
+                                                        {imagePreview ? (
+                                                            <img
+                                                                src={imagePreview}
+                                                                alt={userData?.name || 'User'}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            userData?.username?.charAt(0)
+                                                        )}
+                                                        
+                                                        {/* Upload overlay */}
+                                                        <motion.div
+                                                            className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                                            onClick={triggerFileInput}
+                                                        >
+                                                            <div className="bg-gray-800 p-2 px-4 rounded-md border border-gray-600 flex items-center gap-2">
+                                                                <Upload className="w-5 h-5 text-white" />
+                                                                <p className="text-sm capitalize font-normal text-white">
+                                                                    {imagePreview ? 'Change Photo' : 'Upload Photo'}
+                                                                </p>
+                                                            </div>
+                                                        </motion.div>
+                                                        
+                                                        {/* Loading overlay */}
+                                                        {imageUploading && (
+                                                            <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
+                                                                <div className="bg-gray-800 p-3 rounded-md border border-gray-600 flex items-center gap-2">
+                                                                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                    </svg>
+                                                                    <p className="text-sm text-white">Uploading...</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    {/* Remove image button */}
+                                                    {imagePreview && (
+                                                        <motion.button
+                                                            whileHover={{ scale: 1.1 }}
+                                                            whileTap={{ scale: 0.9 }}
+                                                            onClick={removeImage}
+                                                            className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </motion.button>
                                                     )}
-                                                    <motion.div
-                                                        className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                        onClick={triggerFileInput}
-                                                    >
-                                                        <div className="bg-gray-800 p-2 px-4 rounded-md border border-gray-600 flex items-center gap-2 cursor-pointer">
-                                                            <Upload className="w-5 h-5 text-white" />
-                                                            <p className="text-sm capitalize font-normal">Upload Photo</p>
-                                                        </div>
-                                                    </motion.div>
                                                 </div>
+                                                
+                                                {/* Hidden file input */}
+                                                <input
+                                                    ref={fileInputRef}
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/gif,image/webp"
+                                                    onChange={handleImageUpload}
+                                                    className="hidden"
+                                                />
+                                                
+                                                <div className="flex gap-2">
+                                                    <motion.button
+                                                        whileHover={{ scale: imageUploading ? 1 : 1.02 }}
+                                                        whileTap={{ scale: imageUploading ? 1 : 0.98 }}
+                                                        onClick={triggerFileInput}
+                                                        disabled={imageUploading}
+                                                        className={`px-4 py-2 rounded-md border transition-colors ${
+                                                            imageUploading 
+                                                                ? 'opacity-50 cursor-not-allowed' 
+                                                                : isDark 
+                                                                    ? 'border-gray-600 hover:bg-gray-700' 
+                                                                    : 'border-gray-300 hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            {imageUploading ? (
+                                                                <>
+                                                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                    </svg>
+                                                                    <span className="text-sm">Uploading...</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Upload className="w-4 h-4" />
+                                                                    <span className="text-sm">Choose File</span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </motion.button>
+                                                    
+                                                    {imagePreview && imagePreview !== userData?.image && !imageUploading && (
+                                                        <motion.button
+                                                            whileHover={{ scale: 1.02 }}
+                                                            whileTap={{ scale: 0.98 }}
+                                                            onClick={removeImage}
+                                                            className="px-4 py-2 rounded-md border border-red-500 text-red-500 hover:bg-red-50 transition-colors"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <X className="w-4 h-4" />
+                                                                <span className="text-sm">Remove</span>
+                                                            </div>
+                                                        </motion.button>
+                                                    )}
+                                                </div>
+                                                
                                                 <p className="text-sm text-center mt-2 opacity-70">
-                                                    Click to upload a profile photo<br />
-                                                    JPG, PNG or GIF. Max 5MB.
+                                                    Upload a profile photo<br />
+                                                    JPG, PNG, GIF, or WebP. Max 5MB.
                                                 </p>
 
                                                 {/* Stats and badges section */}

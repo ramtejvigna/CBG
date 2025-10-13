@@ -181,7 +181,7 @@ const ChallengePage = () => {
         setTestResults(null)
         setRuntime(null)
         setMemory(null)
-        setActiveConsoleTab("testcase")
+        setActiveConsoleTab("result")
 
         try {
             const result = await executeCode(code, selectedLanguage, challenge.id, false);
@@ -209,6 +209,7 @@ const ChallengePage = () => {
 
     // Submit solution
     const handleSubmitSolution = async () => {
+        console.log(session?.user)
         if (!challenge || !selectedLanguage || !session?.user?.id) {
             if (!session?.user?.id) {
                 toast.error("Please sign in to submit solutions")

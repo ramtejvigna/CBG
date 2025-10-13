@@ -91,7 +91,7 @@ export const addLanguage = async (req: Request, res: Response) => {
     } catch (error) {
         return res.status(500).json({
             success: false, 
-            message: error.message
+            message: 'Error while adding language'
         })
     }
 }

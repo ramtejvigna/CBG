@@ -496,11 +496,31 @@ export const getUserContests = async (req: Request, res: Response) => {
 export const updateUserProfile = async (req: Request, res: Response) => {
     try {
         const { userId } = req.params;
-        console.log(req.body)
+        console.log('Update profile request for user:', userId);
         const { name, email, image, profile } = req.body;
         
         if (!userId) {
             return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        // Validate image data if provided
+        if (image && typeof image === 'string') {
+            // Check if it's a base64 image
+            if (image.startsWith('data:image/')) {
+                // Extract the base64 part and check size (roughly)
+                const base64Data = image.split(',')[1];
+                if (base64Data) {
+                    // Rough size calculation: base64 is ~1.33x the original size
+                    const sizeInBytes = (base64Data.length * 3) / 4;
+                    const sizeInMB = sizeInBytes / (1024 * 1024);
+                    
+                    if (sizeInMB > 5) {
+                        return res.status(400).json({ 
+                            message: 'Image file is too large. Please use an image smaller than 5MB.' 
+                        });
+                    }
+                }
+            }
         }
         
         // Check if user exists
@@ -561,6 +581,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         // Remove password from response
         const { password, ...userWithoutPassword } = updatedUser;
         
+        console.log('Profile updated successfully for user:', userId);
         res.json({
             success: true,
             message: 'Profile updated successfully',
@@ -568,6 +589,88 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         });
     } catch (error) {
         console.error('Error updating user profile:', error);
+        
+        // Handle specific payload too large errors
+        if (error instanceof Error && error.message.includes('too large')) {
+            return res.status(413).json({ 
+                message: 'Request payload too large. Please use a smaller image.' 
+            });
+        }
+        
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const getUserImage = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.params;
+        
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { 
+                id: true,
+                image: true,
+                name: true 
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (!user.image) {
+            return res.status(404).json({ message: 'User has no profile image' });
+        }
+
+        res.json({
+            success: true,
+            image: user.image,
+            userId: user.id,
+            name: user.name
+        });
+    } catch (error) {
+        console.error('Error fetching user image:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const getCurrentUserImage = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.id;
+        
+        if (!userId) {
+            return res.status(401).json({ message: 'Not authenticated' });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { 
+                id: true,
+                image: true,
+                name: true 
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (!user.image) {
+            return res.status(404).json({ message: 'User has no profile image' });
+        }
+
+        res.json({
+            success: true,
+            image: user.image,
+            userId: user.id,
+            name: user.name
+        });
+    } catch (error) {
+        console.error('Error fetching current user image:', error);
         res.status(500).json({ message: 'Internal server error', error });
     }
 };

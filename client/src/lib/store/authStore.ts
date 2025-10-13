@@ -10,6 +10,7 @@ export interface User {
     fullName?: string;
     preferredLanguage?: string;
     image?: string;
+    hasImage?: boolean;
     role?: string;
     level?: number;
     points?: number;
@@ -128,6 +129,7 @@ export const useAuthStore = create<AuthState>()(
                     }
                     
                     if (data.success && data.token) {
+                        console.log(data.token)
                         localStorage.setItem('auth-token', data.token);
                         set({ user: data.user });
                         

@@ -15,7 +15,8 @@ import { initializeRankingSystem, shutdownRankingSystem } from "./lib/rankingSch
 const app = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for image uploads
+app.use(express.urlencoded({ limit: '10mb', extended: true })); // Also handle form data
 app.use(cors());
 
 app.use((req, res, next) => {
@@ -42,6 +43,16 @@ app.get('/health', (req, res) => {
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error('Server error:', err);
+    
+    // Handle payload too large errors specifically
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({
+            success: false,
+            message: 'Request payload too large. Please use a smaller image (max 5MB).',
+            error: 'PAYLOAD_TOO_LARGE'
+        });
+    }
+    
     res.status(err.status || 500).json({
         success: false,
         message: err.message || 'Internal server error',

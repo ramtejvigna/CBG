@@ -3,7 +3,7 @@ import { useProfileStore, UserProfile } from '../lib/store/profileStore';
 interface UpdateProfileData {
     name?: string;
     email?: string;
-    image?: string;
+    image?: string | null;
     profile?: {
         phone?: string;
         bio?: string;
