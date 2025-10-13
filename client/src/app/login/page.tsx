@@ -17,11 +17,13 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 
 export default function AuthForm() {
     const router = useRouter();
+    const { data: session, status } = useSession();
     const [showPassword, setShowPassword] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -34,7 +36,7 @@ export default function AuthForm() {
     const [codePosition, setCodePosition] = useState(0);
     const [isClient, setIsClient] = useState(false);
 
-    const { login, loading, error, user, setError, checkAuth } = useAuthStore();
+    const { loading, error, user, setError, login, checkAuth } = useAuthStore();
 
     // Use useEffect to set isClient to true after component mounts
     useEffect(() => {
@@ -43,18 +45,23 @@ export default function AuthForm() {
 
     // Check if user is already authenticated and redirect
     useEffect(() => {
-        checkAuth(); // Initialize auth state
-    }, [checkAuth]);
+        const handleAuth = async () => {
+            if (status === 'loading') return; // Still loading
 
-    useEffect(() => {
-        if (user && !loading) {
-            if (user.role === 'ADMIN') {
-                router.push('/admin');
-            } else {
-                router.push('/');
+            const auth = await checkAuth();
+            
+            if (session?.user && auth) {
+                // User is authenticated via NextAuth
+                if (session.user.needsOnboarding) {
+                    router.push('/onboarding');
+                } else {
+                    router.push('/');
+                }
             }
-        }
-    }, [user, loading, router]);
+        };
+
+        handleAuth();
+    }, [session, status, router, checkAuth]);
 
     // Animation for background code typing effect - only run on client
     useEffect(() => {
@@ -114,13 +121,32 @@ export default function AuthForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
+        setIsSubmitting(true);
 
         try {
-            await login(formData.email, formData.password);
-            // Navigation will be handled by the useEffect that watches for user changes
+            // Use NextAuth credentials provider for session management
+            const result = await signIn('credentials', {
+                email: formData.email,
+                password: formData.password,
+                redirect: false // Don't redirect automatically
+            });
+
+            if (result?.error) {
+                setError('Invalid email or password');
+                return;
+            }
+
+            if (result?.ok) {
+                await login(formData.email, formData.password);
+
+                // Navigation will be handled by the useEffect that watches for session changes
+                router.refresh(); // Refresh to ensure session is loaded
+            }
         } catch (err) {
-            // Error is already handled by the authStore
+            setError('Login failed. Please try again.');
             console.error('Login failed:', err);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -165,7 +191,7 @@ export default function AuthForm() {
     return (
         <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
             {/* Show loading spinner while checking auth */}
-            {loading && !isClient && (
+            {(status === 'loading' || loading) && !isClient && (
                 <div className="absolute inset-0 bg-gray-900 flex items-center justify-center z-50">
                     <div className="flex flex-col items-center">
                         <svg className="animate-spin h-8 w-8 text-orange-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -324,18 +350,18 @@ export default function AuthForm() {
                         {/* Enhanced submit button with animation effects */}
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={isSubmitting || status === 'loading'}
                             className={`w-full py-3 px-4 rounded-lg text-white font-medium relative overflow-hidden group
                             bg-gradient-to-tr from-orange-600 to-orange-800 hover:from-orange-500 hover:to-orange-700
                             focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 
-                            transition-all duration-500 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            transition-all duration-500 ${isSubmitting || status === 'loading' ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                             {/* Button glow effect */}
                             <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-0 
                             group-hover:opacity-20 transform group-hover:-translate-x-full transition-all duration-1000 ease-in-out"></span>
                             
                             <span className="relative flex items-center justify-center">
-                                {loading ? (
+                                {isSubmitting || status === 'loading' ? (
                                     <>
                                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -362,7 +388,7 @@ export default function AuthForm() {
                             <button
                                 type="button"
                                 onClick={() => handleSocialLogin('google')}
-                                disabled={loading}
+                                disabled={isSubmitting || status === 'loading'}
                                 className="flex items-center w-full justify-center py-2.5 px-4 rounded-lg border border-gray-700 
                                 bg-gray-700 hover:bg-gray-600 transition-all duration-300 text-white font-medium
                                 group relative overflow-hidden"

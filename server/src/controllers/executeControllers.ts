@@ -32,7 +32,7 @@ const updateUserPointsForSubmission = async (userId: string, challengeId: string
             // Use a transaction to ensure data consistency
             await prisma.$transaction(async (tx) => {
                 // Update user profile points and solved count
-                await tx.userProfile.upsert({
+                const updatedProfile = await tx.userProfile.upsert({
                     where: { userId: userId },
                     update: {
                         points: {
@@ -55,17 +55,19 @@ const updateUserPointsForSubmission = async (userId: string, challengeId: string
                     }
                 });
 
-                // Create activity record
+                // Create activity record for successful submission
                 await tx.activity.create({
                     data: {
                         userId: userId,
                         type: ActivityType.CHALLENGE,
-                        name: `${challenge.title}`,
-                        result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge`,
+                        name: challenge.title,
+                        result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge (+${challengePoints} points)`,
                         points: challengePoints,
                         time: new Date().toLocaleTimeString()
                     }
                 });
+
+                console.log(`User ${userId} profile updated: ${updatedProfile.solved} solved, ${updatedProfile.points} total points`);
             });
 
             console.log(`Awarded ${challengePoints} points to user ${userId} for solving challenge ${challengeId}`);
@@ -224,7 +226,7 @@ export const executeCode = async (req: Request, res: Response) => {
         // If this is a submission and user is provided, save it
         if (isSubmission && userId) {
             try {
-                await prisma.submission.create({
+                const submission = await prisma.submission.create({
                     data: {
                         userId: userId,
                         challengeId: challengeId,
@@ -240,6 +242,18 @@ export const executeCode = async (req: Request, res: Response) => {
                 // Award points and create activity if submission is successful
                 if (overallStatus === SubmissionStatus.ACCEPTED) {
                     await updateUserPointsForSubmission(userId, challengeId, challenge.points);
+                } else {
+                    // Create activity for failed submissions (no points awarded)
+                    await prisma.activity.create({
+                        data: {
+                            userId: userId,
+                            type: ActivityType.CHALLENGE,
+                            name: challenge.title,
+                            result: `Attempted ${challenge.difficulty.toLowerCase()} challenge - ${overallStatus.replace(/_/g, ' ').toLowerCase()}`,
+                            points: 0,
+                            time: new Date().toLocaleTimeString()
+                        }
+                    });
                 }
             } catch (dbError) {
                 console.error('Error saving submission:', dbError);
