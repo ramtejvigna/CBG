@@ -212,15 +212,13 @@ export const executeCode = async (req: Request, res: Response) => {
                 });
             }
 
-            // const now = new Date();
-            // console.log(now < new Date(contest.startsAt))
-            // console.log(now > new Date(contest.endsAt))
-            // if (now < new Date(contest.startsAt) || now > new Date(contest.endsAt)) {
-            //     return res.status(400).json({ 
-            //         success: false, 
-            //         message: 'Contest is not active' 
-            //     });
-            // }
+            const now = new Date();
+            if (now < contest.startsAt || now > contest.endsAt) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Contest is not active' 
+                });
+            }
 
             // Check if user is registered for the contest
             contestParticipant = await prisma.contestParticipant.findUnique({
