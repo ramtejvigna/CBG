@@ -191,7 +191,7 @@ export const useChallengesStore = create<ChallengesState>()(
             }
 
             const queryString = params.toString();
-            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges/filter${queryString ? '?' + queryString : ''}`;
+            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges${queryString ? '?' + queryString : ''}`;
 
             const response = await fetch(url);
             if (!response.ok) {

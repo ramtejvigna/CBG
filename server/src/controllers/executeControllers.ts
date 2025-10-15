@@ -143,7 +143,8 @@ export const executeCode = async (req: Request, res: Response) => {
             challengeId, 
             testCaseId, 
             isSubmission, 
-            userId 
+            userId,
+            contestId 
         } = req.body;
 
         // Validate required fields
@@ -180,6 +181,88 @@ export const executeCode = async (req: Request, res: Response) => {
                 success: false, 
                 message: `Language ${language} is not supported for this challenge` 
             });
+        }
+
+        // Contest validation if contestId is provided
+        let contestChallenge = null;
+        let contestParticipant = null;
+        if (contestId && isSubmission && userId) {
+            // Check if contest exists and is ongoing
+            const contest = await prisma.contest.findUnique({
+                where: { id: contestId },
+                select: { 
+                    status: true, 
+                    startsAt: true, 
+                    endsAt: true,
+                    title: true 
+                }
+            });
+
+            if (!contest) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Contest not found' 
+                });
+            }
+
+            if (contest.status !== 'ONGOING') {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Contest is not currently ongoing' 
+                });
+            }
+
+            // const now = new Date();
+            // console.log(now < new Date(contest.startsAt))
+            // console.log(now > new Date(contest.endsAt))
+            // if (now < new Date(contest.startsAt) || now > new Date(contest.endsAt)) {
+            //     return res.status(400).json({ 
+            //         success: false, 
+            //         message: 'Contest is not active' 
+            //     });
+            // }
+
+            // Check if user is registered for the contest
+            contestParticipant = await prisma.contestParticipant.findUnique({
+                where: {
+                    userId_contestId: {
+                        userId: userId,
+                        contestId: contestId
+                    }
+                }
+            });
+
+            if (!contestParticipant) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'User is not registered for this contest' 
+                });
+            }
+
+            // Get contest challenge details
+            contestChallenge = await prisma.contestChallenge.findUnique({
+                where: {
+                    contestId_challengeId: {
+                        contestId: contestId,
+                        challengeId: challengeId
+                    }
+                },
+                include: {
+                    challenge: {
+                        select: {
+                            title: true,
+                            difficulty: true
+                        }
+                    }
+                }
+            });
+
+            if (!contestChallenge) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Challenge not found in this contest' 
+                });
+            }
         }
 
         let testCases;
@@ -272,159 +355,287 @@ export const executeCode = async (req: Request, res: Response) => {
         // If this is a submission and user is provided, save it
         if (isSubmission && userId) {
             try {
-                console.log(`Starting transaction for user ${userId}, challenge ${challengeId}, status: ${overallStatus}`);
+                console.log(`Starting transaction for user ${userId}, challenge ${challengeId}, contest: ${contestId || 'none'}, status: ${overallStatus}`);
                 
                 // Use a single transaction for all database operations
                 await prisma.$transaction(async (tx) => {
-                    console.log(`Creating submission for user ${userId}`);
-                    
-                    // Create the submission first
-                    const submission = await tx.submission.create({
-                        data: {
-                            userId: userId,
-                            challengeId: challengeId,
-                            code: code,
-                            languageId: challengeLanguage.id,
-                            status: overallStatus,
-                            runtime: avgRuntime,
-                            memory: avgMemory,
-                            testResults: testResults
-                        }
-                    });
-
-                    console.log(`Submission created with ID: ${submission.id}`);
-
-                    // Handle points and activity based on submission status
-                    if (overallStatus === SubmissionStatus.ACCEPTED) {
-                        console.log(`Checking for previous successful submissions for user ${userId}, challenge ${challengeId}`);
+                    // If this is a contest submission, handle it via contest submission logic
+                    if (contestId && contestChallenge && contestParticipant) {
+                        console.log(`Creating contest submission for user ${userId}, contest ${contestId}`);
                         
-                        // Check if this is the user's first successful submission for this challenge
-                        const previousSuccessfulSubmission = await tx.submission.findFirst({
+                        // Calculate points for contest submission
+                        const submissionPoints = allPassed ? contestChallenge.points : 0;
+
+                        // Create or update contest submission
+                        const contestSubmission = await tx.contestSubmission.upsert({
                             where: {
-                                userId: userId,
-                                challengeId: challengeId,
-                                status: SubmissionStatus.ACCEPTED,
-                                id: { not: submission.id } // Exclude the current submission
+                                participantId_contestChallengeId: {
+                                    participantId: contestParticipant.id,
+                                    contestChallengeId: contestChallenge.id
+                                }
+                            },
+                            update: {
+                                code: code,
+                                languageId: challengeLanguage.id,
+                                status: overallStatus,
+                                points: submissionPoints,
+                                runtime: avgRuntime,
+                                memory: avgMemory,
+                                testResults: testResults
+                            },
+                            create: {
+                                participantId: contestParticipant.id,
+                                contestChallengeId: contestChallenge.id,
+                                code: code,
+                                languageId: challengeLanguage.id,
+                                status: overallStatus,
+                                points: submissionPoints,
+                                runtime: avgRuntime,
+                                memory: avgMemory,
+                                testResults: testResults
                             }
                         });
 
-                        // Only award points if this is the first successful submission for this challenge
-                        if (!previousSuccessfulSubmission) {
-                            console.log(`First successful submission - updating user profile for user ${userId}`);
-                            
-                            // Get current streak before update
-                            const currentProfile = await tx.userProfile.findUnique({
-                                where: { userId: userId },
-                                select: { streakDays: true }
-                            });
-                            const oldStreak = currentProfile?.streakDays || 0;
-                            
-                            // Calculate current streak (this will include the current successful submission)
-                            const currentStreak = await updateUserStreak(userId, tx);
-                            
-                            // Update user profile points, solved count, and streak
-                            const updatedProfile = await tx.userProfile.upsert({
-                                where: { userId: userId },
-                                update: {
-                                    points: {
-                                        increment: challenge.points
-                                    },
-                                    solved: {
-                                        increment: 1
-                                    },
-                                    streakDays: currentStreak
-                                },
-                                create: {
-                                    userId: userId,
-                                    rank: null,
-                                    bio: "No bio provided",
-                                    phone: null,
-                                    solved: 1,
-                                    preferredLanguage: "javascript",
-                                    level: 1,
-                                    points: challenge.points,
-                                    streakDays: currentStreak
+                        // If this is a successful submission, update participant points
+                        if (overallStatus === SubmissionStatus.ACCEPTED) {
+                            // Check if this is the participant's first successful submission for this challenge
+                            const existingSuccessfulSubmission = await tx.contestSubmission.findFirst({
+                                where: {
+                                    participantId: contestParticipant.id,
+                                    contestChallengeId: contestChallenge.id,
+                                    status: SubmissionStatus.ACCEPTED,
+                                    id: { not: contestSubmission.id }
                                 }
                             });
 
-                            // Check for streak milestones
-                            await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+                            // Only update points if this is the first successful submission or if it's better
+                            if (!existingSuccessfulSubmission) {
+                                // Update participant points
+                                await tx.contestParticipant.update({
+                                    where: { id: contestParticipant.id },
+                                    data: {
+                                        points: {
+                                            increment: submissionPoints
+                                        }
+                                    }
+                                });
 
-                            console.log(`User profile updated: ${updatedProfile.solved} solved, ${updatedProfile.points} total points, ${updatedProfile.streakDays} day streak`);
+                                // Update user profile points and create activity
+                                await tx.userProfile.upsert({
+                                    where: { userId: userId },
+                                    update: {
+                                        points: {
+                                            increment: submissionPoints
+                                        }
+                                    },
+                                    create: {
+                                        userId: userId,
+                                        rank: null,
+                                        bio: "No bio provided",
+                                        phone: null,
+                                        solved: 0,
+                                        preferredLanguage: "javascript",
+                                        level: 1,
+                                        points: submissionPoints,
+                                        streakDays: 0
+                                    }
+                                });
 
-                            // Create activity record for successful submission
-                            const activity = await tx.activity.create({
+                                // Create activity record for contest submission
+                                await tx.activity.create({
+                                    data: {
+                                        userId: userId,
+                                        type: ActivityType.CONTEST,
+                                        name: `Contest Submission: ${challenge.title}`,
+                                        result: `Successfully solved contest challenge (+${submissionPoints} points)`,
+                                        points: submissionPoints,
+                                        time: new Date().toLocaleTimeString()
+                                    }
+                                });
+
+                                console.log(`Contest submission successful - awarded ${submissionPoints} points to user ${userId}`);
+                            } else {
+                                console.log(`User ${userId} already solved this contest challenge - updating submission without points`);
+                                
+                                // Create activity for re-submission but no points
+                                await tx.activity.create({
+                                    data: {
+                                        userId: userId,
+                                        type: ActivityType.CONTEST,
+                                        name: `Contest Submission: ${challenge.title}`,
+                                        result: `Re-solved contest challenge (no additional points)`,
+                                        points: 0,
+                                        time: new Date().toLocaleTimeString()
+                                    }
+                                });
+                            }
+                        } else {
+                            console.log(`Failed contest submission for user ${userId}`);
+                            
+                            // Create activity for failed contest submission
+                            await tx.activity.create({
                                 data: {
                                     userId: userId,
-                                    type: ActivityType.CHALLENGE,
-                                    name: challenge.title,
-                                    result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge (+${challenge.points} points)`,
-                                    points: challenge.points,
+                                    type: ActivityType.CONTEST,
+                                    name: `Contest Submission: ${challenge.title}`,
+                                    result: `Attempted contest challenge - ${overallStatus.replace(/_/g, ' ').toLowerCase()}`,
+                                    points: 0,
                                     time: new Date().toLocaleTimeString()
                                 }
                             });
+                        }
+                    } else {
+                        // Regular challenge submission (not contest)
+                        console.log(`Creating regular submission for user ${userId}`);
+                        
+                        // Create the submission first
+                        const submission = await tx.submission.create({
+                            data: {
+                                userId: userId,
+                                challengeId: challengeId,
+                                code: code,
+                                languageId: challengeLanguage.id,
+                                status: overallStatus,
+                                runtime: avgRuntime,
+                                memory: avgMemory,
+                                testResults: testResults
+                            }
+                        });
 
-                            console.log(`Activity created with ID: ${activity.id}`);
-                            console.log(`Awarded ${challenge.points} points to user ${userId} for solving challenge ${challengeId}`);
-                        } else {
-                            console.log(`User ${userId} already solved challenge ${challengeId} - updating streak and creating activity without points`);
+                        console.log(`Submission created with ID: ${submission.id}`);
+
+                        // Handle points and activity based on submission status
+                        if (overallStatus === SubmissionStatus.ACCEPTED) {
+                            console.log(`Checking for previous successful submissions for user ${userId}, challenge ${challengeId}`);
                             
-                            // Get current streak before update
-                            const currentProfile = await tx.userProfile.findUnique({
-                                where: { userId: userId },
-                                select: { streakDays: true }
-                            });
-                            const oldStreak = currentProfile?.streakDays || 0;
-                            
-                            // Calculate and update current streak even for re-solved challenges
-                            const currentStreak = await updateUserStreak(userId, tx);
-                            
-                            // Update streak in user profile (no points since already solved)
-                            await tx.userProfile.update({
-                                where: { userId: userId },
-                                data: {
-                                    streakDays: currentStreak
+                            // Check if this is the user's first successful submission for this challenge
+                            const previousSuccessfulSubmission = await tx.submission.findFirst({
+                                where: {
+                                    userId: userId,
+                                    challengeId: challengeId,
+                                    status: SubmissionStatus.ACCEPTED,
+                                    id: { not: submission.id }
                                 }
                             });
 
-                            // Check for streak milestones
-                            await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+                            // Only award points if this is the first successful submission for this challenge
+                            if (!previousSuccessfulSubmission) {
+                                console.log(`First successful submission - updating user profile for user ${userId}`);
+                                
+                                // Get current streak before update
+                                const currentProfile = await tx.userProfile.findUnique({
+                                    where: { userId: userId },
+                                    select: { streakDays: true }
+                                });
+                                const oldStreak = currentProfile?.streakDays || 0;
+                                
+                                // Calculate current streak (this will include the current successful submission)
+                                const currentStreak = await updateUserStreak(userId, tx);
+                                
+                                // Update user profile points, solved count, and streak
+                                const updatedProfile = await tx.userProfile.upsert({
+                                    where: { userId: userId },
+                                    update: {
+                                        points: {
+                                            increment: challenge.points
+                                        },
+                                        solved: {
+                                            increment: 1
+                                        },
+                                        streakDays: currentStreak
+                                    },
+                                    create: {
+                                        userId: userId,
+                                        rank: null,
+                                        bio: "No bio provided",
+                                        phone: null,
+                                        solved: 1,
+                                        preferredLanguage: "javascript",
+                                        level: 1,
+                                        points: challenge.points,
+                                        streakDays: currentStreak
+                                    }
+                                });
 
-                            console.log(`Updated streak for user ${userId}: ${currentStreak} days`);
+                                // Check for streak milestones
+                                await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+
+                                console.log(`User profile updated: ${updatedProfile.solved} solved, ${updatedProfile.points} total points, ${updatedProfile.streakDays} day streak`);
+
+                                // Create activity record for successful submission
+                                const activity = await tx.activity.create({
+                                    data: {
+                                        userId: userId,
+                                        type: ActivityType.CHALLENGE,
+                                        name: challenge.title,
+                                        result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge (+${challenge.points} points)`,
+                                        points: challenge.points,
+                                        time: new Date().toLocaleTimeString()
+                                    }
+                                });
+
+                                console.log(`Activity created with ID: ${activity.id}`);
+                                console.log(`Awarded ${challenge.points} points to user ${userId} for solving challenge ${challengeId}`);
+                            } else {
+                                console.log(`User ${userId} already solved challenge ${challengeId} - updating streak and creating activity without points`);
+                                
+                                // Get current streak before update
+                                const currentProfile = await tx.userProfile.findUnique({
+                                    where: { userId: userId },
+                                    select: { streakDays: true }
+                                });
+                                const oldStreak = currentProfile?.streakDays || 0;
+                                
+                                // Calculate and update current streak even for re-solved challenges
+                                const currentStreak = await updateUserStreak(userId, tx);
+                                
+                                // Update streak in user profile (no points since already solved)
+                                await tx.userProfile.update({
+                                    where: { userId: userId },
+                                    data: {
+                                        streakDays: currentStreak
+                                    }
+                                });
+
+                                // Check for streak milestones
+                                await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+
+                                console.log(`Updated streak for user ${userId}: ${currentStreak} days`);
+                                
+                                // Create activity for successful submission but no points (already solved)
+                                const activity = await tx.activity.create({
+                                    data: {
+                                        userId: userId,
+                                        type: ActivityType.CHALLENGE,
+                                        name: challenge.title,
+                                        result: `Re-solved ${challenge.difficulty.toLowerCase()} challenge (no additional points)`,
+                                        points: 0,
+                                        time: new Date().toLocaleTimeString()
+                                    }
+                                });
+
+                                console.log(`Activity created with ID: ${activity.id} (no points awarded)`);
+                            }
+                        } else {
+                            console.log(`Failed submission - creating activity for user ${userId}`);
                             
-                            // Create activity for successful submission but no points (already solved)
+                            // Create activity for failed submissions (no points awarded)
                             const activity = await tx.activity.create({
                                 data: {
                                     userId: userId,
                                     type: ActivityType.CHALLENGE,
                                     name: challenge.title,
-                                    result: `Re-solved ${challenge.difficulty.toLowerCase()} challenge (no additional points)`,
+                                    result: `Attempted ${challenge.difficulty.toLowerCase()} challenge - ${overallStatus.replace(/_/g, ' ').toLowerCase()}`,
                                     points: 0,
                                     time: new Date().toLocaleTimeString()
                                 }
                             });
 
-                            console.log(`Activity created with ID: ${activity.id} (no points awarded)`);
+                            console.log(`Activity created with ID: ${activity.id} for failed submission`);
                         }
-                    } else {
-                        console.log(`Failed submission - creating activity for user ${userId}`);
-                        
-                        // Create activity for failed submissions (no points awarded)
-                        const activity = await tx.activity.create({
-                            data: {
-                                userId: userId,
-                                type: ActivityType.CHALLENGE,
-                                name: challenge.title,
-                                result: `Attempted ${challenge.difficulty.toLowerCase()} challenge - ${overallStatus.replace(/_/g, ' ').toLowerCase()}`,
-                                points: 0,
-                                time: new Date().toLocaleTimeString()
-                            }
-                        });
-
-                        console.log(`Activity created with ID: ${activity.id} for failed submission`);
                     }
                 }, {
-                    timeout: 10000, // 10 second timeout
+                    timeout: 15000, // 15 second timeout for contest submissions
                 });
 
                 console.log(`Transaction completed successfully for user ${userId}`);

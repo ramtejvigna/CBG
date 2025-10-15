@@ -26,7 +26,7 @@ interface ExecutionResult {
 }
 
 interface UseCodeExecutionReturn {
-  executeCode: (code: string, language: string, challengeId: string, isSubmission?: boolean, testCaseId?: string) => Promise<ExecutionResult>;
+  executeCode: (code: string, language: string, challengeId: string, isSubmission?: boolean, testCaseId?: string, contestId?: string) => Promise<ExecutionResult>;
   isExecuting: boolean;
   error: string | null;
   lastResult: ExecutionResult | null;

@@ -234,9 +234,6 @@ export class DockerExecutor {
         code-execution-sandbox:latest \
         /bin/bash -c "timeout ${langConfig.timeout}s /execute-${language.toLowerCase()}.sh"`;
 
-            console.log(`Executing: ${dockerCommand}`);
-            console.log(`Host path: ${hostPath}, Execution dir: ${executionDir}`);
-
             // Execute the code in Docker
             const { stdout, stderr } = await execPromise(dockerCommand);
 
@@ -274,9 +271,14 @@ export class DockerExecutor {
                 passed
             };
         } catch (error) {
-            console.error('Error executing code:', error);
-
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            let errorMessage: string;
+            if (error && typeof error === 'object' && 'stderr' in error) {
+                errorMessage = String(error.stderr);
+            } else if (error instanceof Error) {
+                errorMessage = error.message;
+            } else {
+                errorMessage = String(error);
+            }
 
             // Determine if it's a compilation error or runtime error
             const isCompilationError = errorMessage.includes('compile') ||

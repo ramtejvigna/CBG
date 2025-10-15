@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Split from "react-split"
 import { useTheme } from "@/context/ThemeContext"
@@ -89,12 +89,16 @@ interface TestResult {
 const ChallengePage = () => {
     const { slug } = useParams()
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { theme } = useTheme()
     const { data: session, status } = useSession()
 
     const challengeData = useChallenge(slug as string);
     const { executeCode, isExecuting } = useCodeExecution();
     const { languages } = useLanguages();
+
+    // Get contest ID from URL parameters if present
+    const contestId = searchParams.get('contest')
 
     const isDark = theme === "dark"
     // State
@@ -109,6 +113,7 @@ const ChallengePage = () => {
     const [activeConsoleTab, setActiveConsoleTab] = useState("testcase")
     const [submissions, setSubmissions] = useState<Submission[]>([])
     const [submissionsLoading, setSubmissionsLoading] = useState(false)
+    const [contestInfo, setContestInfo] = useState<{ title: string, status: string } | null>(null)
 
     // Determine if challenge is solved (accepted submission exists or current submission accepted)
     const hasAcceptedSubmission = submissions.some((s) => s.status === "ACCEPTED")
@@ -131,6 +136,39 @@ const ChallengePage = () => {
             fetchChallenge()
         }
     }, [challengeData, slug])
+
+    // Fetch contest information if contest ID is present
+    useEffect(() => {
+        const fetchContestInfo = async () => {
+            if (!contestId) return
+            
+            try {
+                const token = localStorage.getItem('auth-token')
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json'
+                }
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`
+                }
+
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests/${contestId}`, {
+                    headers
+                })
+
+                if (response.ok) {
+                    const contest = await response.json()
+                    setContestInfo({
+                        title: contest.title,
+                        status: contest.status
+                    })
+                }
+            } catch (error) {
+                console.error('Error fetching contest info:', error)
+            }
+        }
+
+        fetchContestInfo()
+    }, [contestId])
 
     // Set default language when languages are loaded
     useEffect(() => {
@@ -184,7 +222,7 @@ const ChallengePage = () => {
         setActiveConsoleTab("result")
 
         try {
-            const result = await executeCode(code, selectedLanguage, challenge.id, false);
+            const result = await executeCode(code, selectedLanguage, challenge.id, false, undefined, contestId || undefined);
 
             if (result.success) {
                 setTestResults(result.testResults || []);
@@ -209,7 +247,6 @@ const ChallengePage = () => {
 
     // Submit solution
     const handleSubmitSolution = async () => {
-        console.log(session?.user)
         if (!challenge || !selectedLanguage || !session?.user?.id) {
             if (!session?.user?.id) {
                 toast.error("Please sign in to submit solutions")
@@ -223,7 +260,7 @@ const ChallengePage = () => {
         setActiveConsoleTab("result")
 
         try {
-            const result = await executeCode(code, selectedLanguage, challenge.id, true);
+            const result = await executeCode(code, selectedLanguage, challenge.id, true, undefined, contestId || undefined);
 
             if (result.success) {
                 setTestResults(result.testResults || []);
@@ -232,7 +269,11 @@ const ChallengePage = () => {
                 setSubmissionStatus(result.allPassed ? "ACCEPTED" : "FAILED");
 
                 if (result.allPassed) {
-                    toast.success(`Solution accepted! All ${result.totalTests} test cases passed.`)
+                    if (contestId) {
+                        toast.success(`Contest submission accepted! All ${result.totalTests} test cases passed.`)
+                    } else {
+                        toast.success(`Solution accepted! All ${result.totalTests} test cases passed.`)
+                    }
                 } else {
                     toast.error(`Solution failed. ${result.passedTests}/${result.totalTests} test cases passed.`)
                 }
@@ -499,6 +540,11 @@ int main() {
                                         <span className={`text-sm font-medium ${getDifficultyColor(challenge.difficulty)}`}>
                                             {challenge.difficulty}
                                         </span>
+                                        {contestInfo && (
+                                            <span className="px-2 py-1 text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30 rounded">
+                                                Contest: {contestInfo.title}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -41,6 +41,38 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     }
 };
 
+export const optionalAuthenticate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+            // No token provided, continue without authentication
+            return next();
+        }
+
+        console.log(token)
+
+        // Get session from database
+        const session = await prisma.session.findUnique({
+            where: { sessionToken: token },
+            include: {
+                user: true
+            }
+        });
+
+        if (session && Date.now() <= new Date(session.expires).getTime()) {
+            // Attach user to request if session is valid
+            req.user = session.user;
+        }
+        
+        // Continue regardless of authentication status
+        next();
+    } catch (error) {
+        // If there's an error in optional auth, just continue without user
+        next();
+    }
+};
+
 export const authenticateAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];

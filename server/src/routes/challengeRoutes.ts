@@ -14,7 +14,7 @@ const router = Router();
 
 // Public routes
 router.get('/home', getHomePageChallenges);
-router.get('/filter', getChallengesByFilter);
+router.get('/', getChallengesByFilter);
 router.get('/slug/:slug', getChallengeBySlug);
 router.get('/submissions', getChallengeSubmissions); // For query param based submissions
 router.get('/:id', getChallengeById);

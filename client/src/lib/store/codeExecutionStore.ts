@@ -33,7 +33,7 @@ interface CodeExecutionState {
   setIsExecuting: (isExecuting: boolean) => void
   setLastResult: (result: ExecutionResult | null) => void
   setError: (error: string | null) => void
-  executeCode: (code: string, language: string, challengeId: string, isSubmission?: boolean, testCaseId?: string) => Promise<ExecutionResult>
+  executeCode: (code: string, language: string, challengeId: string, isSubmission?: boolean, testCaseId?: string, contestId?: string) => Promise<ExecutionResult>
   clearResult: () => void
 }
 
@@ -53,7 +53,8 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
         language: string,
         challengeId: string,
         isSubmission: boolean = false,
-        testCaseId?: string
+        testCaseId?: string,
+        contestId?: string
       ): Promise<ExecutionResult> => {
         const { setIsExecuting, setError, setLastResult } = get()
         
@@ -81,7 +82,8 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
             challengeId,
             isSubmission,
             ...(testCaseId && { testCaseId }),
-            ...(userId && { userId })
+            ...(userId && { userId }),
+            ...(contestId && { contestId })
           }
 
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/execute`, {

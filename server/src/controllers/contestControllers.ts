@@ -8,11 +8,11 @@ const prisma = new PrismaClient();
 export const submitToContest = async (req: Request, res: Response) => {
     try {
         const { contestId, challengeId, code, language } = req.body;
-        
+
         if (!contestId || !challengeId || !code || !language) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Missing required fields: contestId, challengeId, code, language' 
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: contestId, challengeId, code, language'
             });
         }
 
@@ -34,10 +34,13 @@ export const submitToContest = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Contest is not currently ongoing' });
         }
 
-        const now = new Date();
-        if (now < contest.startsAt || now > contest.endsAt) {
-            return res.status(400).json({ message: 'Contest is not active' });
-        }
+        // const now = new Date();
+        // if (now < new Date(contest.startsAt) || now > new Date(contest.endsAt)) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: 'Contest is not active'
+        //     });
+        // }
 
         // Check if user is registered for the contest
         const participant = await prisma.contestParticipant.findUnique({
@@ -83,19 +86,19 @@ export const submitToContest = async (req: Request, res: Response) => {
         );
 
         if (!challengeLanguage) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Language ${language} is not supported for this challenge` 
+            return res.status(400).json({
+                success: false,
+                message: `Language ${language} is not supported for this challenge`
             });
         }
 
         // Execute code against all test cases
         const testCases = challenge.testCases;
-        
+
         if (testCases.length === 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'No test cases available' 
+            return res.status(400).json({
+                success: false,
+                message: 'No test cases available'
             });
         }
 
@@ -110,7 +113,7 @@ export const submitToContest = async (req: Request, res: Response) => {
                     challenge.timeLimit,
                     challenge.memoryLimit
                 );
-                
+
                 return {
                     input: testCase.input,
                     expectedOutput: testCase.output,
@@ -144,10 +147,10 @@ export const submitToContest = async (req: Request, res: Response) => {
         const allPassed = passedTests === totalTests;
         const avgRuntime = Math.round(testResults.reduce((sum, result) => sum + (result.runtime || 0), 0) / testResults.length);
         const avgMemory = Math.round(testResults.reduce((sum, result) => sum + (result.memory || 0), 0) / testResults.length);
-        
+
         // Determine overall status
         let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
-        
+
         if (!allPassed) {
             const failedResults = testResults.filter(result => !result.passed);
             if (failedResults.some(r => r.status === SubmissionStatus.COMPILATION_ERROR)) {
@@ -285,16 +288,16 @@ export const submitToContest = async (req: Request, res: Response) => {
 
         } catch (dbError) {
             console.error('Error saving contest submission:', dbError);
-            res.status(500).json({ 
-                success: false, 
-                message: 'Error saving submission' 
+            res.status(500).json({
+                success: false,
+                message: 'Error saving submission'
             });
         }
 
     } catch (error) {
         console.error('Error in contest submission:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: 'Internal server error'
         });
     }
@@ -302,23 +305,23 @@ export const submitToContest = async (req: Request, res: Response) => {
 
 export const createContest = async (req: Request, res: Response) => {
     try {
-        const { 
-            title, 
-            description, 
-            startsAt, 
-            endsAt, 
+        const {
+            title,
+            description,
+            startsAt,
+            endsAt,
             registrationEnd,
             tags,
             points,
             maxParticipants,
-            challenges 
+            challenges
         } = req.body;
 
         // Validate that the user is authenticated and an admin
         if (!req.user?.id) {
             return res.status(401).json({ message: 'User not authenticated' });
         }
-        
+
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
             include: { adminLead: true }
@@ -372,7 +375,7 @@ export const createContest = async (req: Request, res: Response) => {
 export const registerForContest = async (req: Request, res: Response) => {
     try {
         const { contestId } = req.params;
-        
+
         if (!contestId) {
             return res.status(400).json({ message: 'Contest ID is required' });
         }
@@ -390,7 +393,7 @@ export const registerForContest = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Contest registration is not open' });
         }
 
-        if (contest.registrationEnd < new Date()) {
+        if (new Date(contest.registrationEnd) < new Date()) {
             return res.status(400).json({ message: 'Registration period has ended' });
         }
 
@@ -454,7 +457,7 @@ export const getUpcomingContests = async (req: Request, res: Response) => {
 export const getContestDetails = async (req: Request, res: Response) => {
     try {
         const { contestId } = req.params;
-        
+
         if (!contestId) {
             return res.status(400).json({ message: 'Contest ID is required' });
         }
@@ -491,8 +494,8 @@ export const getContestDetails = async (req: Request, res: Response) => {
                         }
                     }
                 } : false,
-                challenges: (contestStatus.status === ContestStatus.ONGOING || 
-                           contestStatus.status === ContestStatus.FINISHED) ? {
+                challenges: (contestStatus.status === ContestStatus.ONGOING ||
+                    contestStatus.status === ContestStatus.FINISHED) ? {
                     include: {
                         challenge: {
                             select: {
@@ -517,22 +520,69 @@ export const getContestDetails = async (req: Request, res: Response) => {
     }
 };
 
+export const getRegistrationStatus = async (req: Request, res: Response) => {
+    try {
+        const { contestId } = req.params;
+
+        if (!contestId) {
+            return res.status(400).json({ message: 'Contest ID is required' });
+        }
+
+        if (!req.user?.id) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+
+        // Check if user is registered for the contest
+        const participant = await prisma.contestParticipant.findUnique({
+            where: {
+                userId_contestId: {
+                    userId: req.user.id,
+                    contestId: contestId
+                }
+            }
+        });
+
+        res.json({
+            isRegistered: !!participant,
+            registrationId: participant?.id || null
+        });
+    } catch (error) {
+        console.error('Error checking registration status:', error);
+        res.status(500).json({ message: 'Error checking registration status' });
+    }
+};
+
 export const getContests = async (req: Request, res: Response) => {
     try {
         const contests = await prisma.contest.findMany({
             include: {
                 _count: {
                     select: { participants: true }
-                }
+                },
+                ...(req.user?.id && {
+                    participants: {
+                        where: { userId: req.user.id },
+                        take: 1,
+                        select: { id: true }
+                    }
+                })
             },
-            orderBy: {
-                startsAt: 'asc'
-            }
+            orderBy: [
+                { status: 'asc' },
+                { startsAt: 'asc' }
+            ]
         });
 
-        const sanitizedContests = contests.map(({ id, createdAt, updatedAt, ...remainingData }) => remainingData);
-        res.json(sanitizedContests);
+        // Add isRegistered flag to each contest
+        const contestsWithRegistration = contests.map(contest => ({
+            ...contest,
+            isRegistered: req.user?.id ? (contest.participants && contest.participants.length > 0) : false,
+            participants: undefined // Remove the participants array from response
+        }));
+
+        res.json(contestsWithRegistration);
     } catch (error) {
+        console.error('Error fetching contests:', error);
         res.status(500).json({ message: 'Error while fetching contests' })
     }
 }

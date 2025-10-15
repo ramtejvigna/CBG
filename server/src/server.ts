@@ -11,6 +11,7 @@ import contestRoutes from "./routes/contestRoutes.js";
 import languageRoutes from "./routes/languageRoutes.js";
 import executeRoutes from "./routes/executeRoutes.js";
 import { initializeRankingSystem, shutdownRankingSystem } from "./lib/rankingScheduler.js";
+import { initializeContestScheduler, shutdownContestScheduler } from "./lib/contestScheduler.js";
 
 const app = express();
 
@@ -65,17 +66,22 @@ app.listen(PORT, async () => {
     
     // Initialize ranking system
     await initializeRankingSystem();
+    
+    // Initialize contest scheduler
+    await initializeContestScheduler();
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('Received SIGINT, shutting down gracefully...');
     shutdownRankingSystem();
+    shutdownContestScheduler();
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
     console.log('Received SIGTERM, shutting down gracefully...');
     shutdownRankingSystem();
+    shutdownContestScheduler();
     process.exit(0);
 });

@@ -5,7 +5,7 @@
  * @param title - Challenge title
  * @returns URL slug in format "title-slug"
  */
-export const generateChallengeSlug = (title: string): string => {
+export const generateSlug = (title: string): string => {
   const slugTitle = title
     .toLowerCase()
     .replace(/[^\w\s-]/g, '') // Remove special characters except hyphens
@@ -22,7 +22,7 @@ export const generateChallengeSlug = (title: string): string => {
  * @returns Complete URL path
  */
 export const generateChallengeUrl = (title: string): string => {
-  return `/challenges/${generateChallengeSlug(title)}`;
+  return `/challenges/${generateSlug(title)}`;
 };
 
 /**
@@ -62,7 +62,7 @@ export interface ChallengeData {
  */
 export const storeChallengeData = (challengeData: ChallengeData): void => {
   try {
-    const slug = challengeData.slug || generateChallengeSlug(challengeData.title);
+    const slug = challengeData.slug || generateSlug(challengeData.title);
     const normalizedSlug = normalizeSlug(slug);
     sessionStorage.setItem(`challenge-slug-${normalizedSlug}`, JSON.stringify(challengeData));
   } catch (error) {

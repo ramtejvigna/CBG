@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import { Toaster } from "react-hot-toast";
 import { SessionProvider } from "next-auth/react";
 import { AuthRouter } from "@/components/AuthRouter";
+import { AuthProvider } from "@/context/AuthContext";
 import { useEffect } from "react";
 import { migrateAllStores } from "@/lib/migrateStorage";
 
@@ -32,12 +33,14 @@ export default function ClientLayout({
 
     return (
         <SessionProvider>
-            <AuthRouter>
-                {shouldShowNavBarFooter && <NavBar />}
-                {children}
-                {shouldShowNavBarFooter && <Footer />}
-                <Toaster position="top-right" />
-            </AuthRouter>
+            <AuthProvider>
+                <AuthRouter>
+                    {shouldShowNavBarFooter && <NavBar />}
+                    {children}
+                    {shouldShowNavBarFooter && <Footer />}
+                    <Toaster position="top-right" />
+                </AuthRouter>
+            </AuthProvider>
         </SessionProvider>
     );
 }
