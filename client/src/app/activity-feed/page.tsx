@@ -3,7 +3,9 @@
 import { useState } from "react"
 import NavBar from "@/components/NavBar"
 import { useTheme } from "@/context/ThemeContext"
-import { Code, Trophy, Star, Clock, CheckCircle, XCircle, TrendingUp, Award, Target, Zap } from "lucide-react"
+import useActivities from "@/hooks/useActivities"
+import { ActivityListSkeleton } from "@/components/ActivitySkeleton"
+import { Code, Trophy, Star, Clock, CheckCircle, XCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,145 +13,70 @@ import { Card, CardContent } from "@/components/ui/card"
 const ActivityFeedPage = () => {
     const { theme } = useTheme()
     const [activeFilter, setActiveFilter] = useState("all")
+    const [currentPage, setCurrentPage] = useState(1)
+    
+    const { 
+        activities, 
+        pagination, 
+        statistics, 
+        loading, 
+        error, 
+        setPage, 
+        setFilter,
+        refetch
+    } = useActivities({
+        page: currentPage,
+        limit: 8,
+        type: activeFilter
+    })
 
-    const activities = [
-        {
-            id: 1,
-            type: "challenge_completed",
-            title: 'Completed "Two Sum Problem"',
-            description: "Solved in 12 minutes with optimal O(n) solution",
-            timestamp: "2024-01-18T14:30:00Z",
-            points: 100,
-            difficulty: "Easy",
-            status: "success",
-            details: {
-                runtime: "12ms",
-                memory: "14.2MB",
-                language: "JavaScript",
-                attempts: 1,
-            },
-        },
-        {
-            id: 2,
-            type: "contest_participated",
-            title: "Participated in Weekly Algorithm Challenge #46",
-            description: "Ranked 47th out of 1,247 participants",
-            timestamp: "2024-01-17T16:45:00Z",
-            points: 350,
-            difficulty: "Medium",
-            status: "success",
-            details: {
-                rank: 47,
-                totalParticipants: 1247,
-                problemsSolved: 3,
-                totalProblems: 4,
-            },
-        },
-        {
-            id: 3,
-            type: "challenge_attempted",
-            title: 'Attempted "Merge k Sorted Lists"',
-            description: "Time limit exceeded on test case 15/20",
-            timestamp: "2024-01-17T10:15:00Z",
-            points: 0,
-            difficulty: "Hard",
-            status: "failed",
-            details: {
-                runtime: "TLE",
-                memory: "45.6MB",
-                language: "Python",
-                attempts: 3,
-            },
-        },
-        {
-            id: 4,
-            type: "achievement_unlocked",
-            title: 'Unlocked "Speed Demon" Achievement',
-            description: "Solved 5 easy problems in under 10 minutes each",
-            timestamp: "2024-01-16T20:22:00Z",
-            points: 50,
-            difficulty: "Achievement",
-            status: "achievement",
-            details: {
-                category: "Speed",
-                rarity: "Rare",
-                progress: "5/5",
-            },
-        },
-        {
-            id: 5,
-            type: "challenge_completed",
-            title: 'Completed "Binary Tree Inorder Traversal"',
-            description: "Implemented both recursive and iterative solutions",
-            timestamp: "2024-01-16T15:45:00Z",
-            points: 200,
-            difficulty: "Medium",
-            status: "success",
-            details: {
-                runtime: "8ms",
-                memory: "12.1MB",
-                language: "Java",
-                attempts: 2,
-            },
-        },
-        {
-            id: 6,
-            type: "streak_milestone",
-            title: "Reached 7-day Coding Streak!",
-            description: "Solved at least one problem every day for a week",
-            timestamp: "2024-01-15T23:59:00Z",
-            points: 100,
-            difficulty: "Milestone",
-            status: "milestone",
-            details: {
-                streakDays: 7,
-                totalProblems: 12,
-                averageTime: "25 minutes",
-            },
-        },
-    ]
-
-    const stats = {
-        totalPoints: 1247,
-        problemsSolved: 89,
-        currentStreak: 7,
-        contestsParticipated: 12,
-        achievements: 15,
-        averageRating: 1456,
+    // Fallback stats for when data is loading
+    const defaultStats = {
+        totalPoints: 0,
+        problemsSolved: 0,
+        currentStreak: 0,
+        contestsParticipated: 0,
+        achievements: 0,
+        averageRating: 0,
     }
 
-    const getActivityIcon = (type: string, status: string) => {
+    const stats = statistics ? {
+        totalPoints: statistics.totalPoints,
+        problemsSolved: statistics.typeBreakdown.CHALLENGE || 0,
+        currentStreak: 7, // This would come from user profile
+        contestsParticipated: statistics.typeBreakdown.CONTEST || 0,
+        achievements: statistics.typeBreakdown.BADGE || 0,
+        averageRating: 1456, // This would come from user profile
+    } : defaultStats
+
+    const getActivityIcon = (type: string) => {
         switch (type) {
-            case "challenge_completed":
-                return status === "success" ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                ) : (
-                    <XCircle className="w-5 h-5 text-red-500" />
-                )
-            case "challenge_attempted":
-                return <Code className="w-5 h-5 text-orange-500" />
-            case "contest_participated":
+            case "CHALLENGE":
+                return <Code className="w-5 h-5 text-green-500" />
+            case "CONTEST":
                 return <Trophy className="w-5 h-5 text-purple-500" />
-            case "achievement_unlocked":
+            case "BADGE":
                 return <Award className="w-5 h-5 text-yellow-500" />
-            case "streak_milestone":
-                return <Zap className="w-5 h-5 text-blue-500" />
+            case "DISCUSSION":
+                return <Target className="w-5 h-5 text-blue-500" />
             default:
                 return <Target className="w-5 h-5 text-gray-500" />
         }
     }
 
-    const getDifficultyColor = (difficulty: string) => {
-        switch (difficulty.toLowerCase()) {
-            case "easy":
+    const getDifficultyColor = (result: string) => {
+        switch (result.toLowerCase()) {
+            case "accepted":
+            case "completed":
+            case "success":
                 return "bg-green-500/20 text-green-400 border-green-500/30"
-            case "medium":
-                return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-            case "hard":
+            case "wrong_answer":
+            case "failed":
                 return "bg-red-500/20 text-red-400 border-red-500/30"
-            case "achievement":
-                return "bg-purple-500/20 text-purple-400 border-purple-500/30"
-            case "milestone":
+            case "time_limit_exceeded":
+            case "memory_limit_exceeded":
+                return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+            case "pending":
                 return "bg-blue-500/20 text-blue-400 border-blue-500/30"
             default:
                 return "bg-gray-500/20 text-gray-400 border-gray-500/30"
@@ -167,29 +94,56 @@ const ActivityFeedPage = () => {
         return `${diffInDays}d ago`
     }
 
-    const filteredActivities = activities.filter((activity) => {
-        if (activeFilter === "all") return true
-        return activity.type === activeFilter
-    })
+    const handleFilterChange = (filter: string) => {
+        setActiveFilter(filter)
+        setFilter(filter)
+        setCurrentPage(1)
+    }
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page)
+        setPage(page)
+    }
 
     const filters = [
-        { key: "all", label: "All Activity", count: activities.length },
+        { key: "all", label: "All Activity", count: statistics?.totalActivities || 0 },
         {
-            key: "challenge_completed",
+            key: "CHALLENGE",
             label: "Challenges",
-            count: activities.filter((a) => a.type === "challenge_completed").length,
+            count: statistics?.typeBreakdown.CHALLENGE || 0,
         },
         {
-            key: "contest_participated",
+            key: "CONTEST",
             label: "Contests",
-            count: activities.filter((a) => a.type === "contest_participated").length,
+            count: statistics?.typeBreakdown.CONTEST || 0,
         },
         {
-            key: "achievement_unlocked",
+            key: "BADGE",
             label: "Achievements",
-            count: activities.filter((a) => a.type === "achievement_unlocked").length,
+            count: statistics?.typeBreakdown.BADGE || 0,
         },
     ]
+
+    if (error) {
+        return (
+            <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"}`}>
+                <div className="container mx-auto px-6 py-8">
+                    <div className="text-center">
+                        <h1 className={`text-2xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-4`}>
+                            Error Loading Activity Feed
+                        </h1>
+                        <p className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>{error}</p>
+                        <Button 
+                            onClick={() => window.location.reload()} 
+                            className="mt-4"
+                        >
+                            Try Again
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -249,111 +203,185 @@ const ActivityFeedPage = () => {
                     </div>
 
                     {/* Filter Tabs */}
-                    <div className="flex space-x-1 bg-gray-200 dark:bg-gray-800 p-1 rounded-lg w-fit">
-                        {filters.map((filter) => (
-                            <button
-                                key={filter.key}
-                                onClick={() => setActiveFilter(filter.key)}
-                                className={`px-4 py-2 rounded-md font-medium transition-all duration-300 text-sm ${activeFilter === filter.key
-                                        ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg"
-                                        : theme === "dark"
-                                            ? "text-gray-400 hover:text-white hover:bg-gray-700"
-                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                                    }`}
-                            >
-                                {filter.label} ({filter.count})
-                            </button>
-                        ))}
+                    <div className="flex items-center justify-between">
+                        <div className="flex space-x-1 bg-gray-200 dark:bg-gray-800 p-1 rounded-lg w-fit">
+                            {filters.map((filter) => (
+                                <button
+                                    key={filter.key}
+                                    onClick={() => handleFilterChange(filter.key)}
+                                    className={`px-4 py-2 rounded-md font-medium transition-all duration-300 text-sm ${activeFilter === filter.key
+                                            ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg"
+                                            : theme === "dark"
+                                                ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                                                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                        }`}
+                                >
+                                    {filter.label} ({filter.count})
+                                </button>
+                            ))}
+                        </div>
+                        
+                        {/* Refresh Button */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={refetch}
+                            className="flex items-center gap-2"
+                            disabled={loading}
+                        >
+                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                            Refresh
+                        </Button>
                     </div>
                 </div>
 
+                {/* Loading State */}
+                {loading && <ActivityListSkeleton theme={theme} />}
+
                 {/* Activity Feed */}
-                <div className="space-y-4">
-                    {filteredActivities.map((activity, index) => (
-                        <Card
-                            key={activity.id}
-                            className={`${theme === "dark"
-                                    ? "bg-gray-800 border-gray-700 hover:border-orange-500/50"
-                                    : "bg-white border-gray-200 hover:border-orange-500/50"
-                                } transition-all duration-300 hover:shadow-lg animate-slide-in-right`}
-                            style={{ animationDelay: `${index * 0.05}s` }}
-                        >
-                            <CardContent className="p-6">
-                                <div className="flex items-start gap-4">
-                                    <div className="flex-shrink-0 mt-1">{getActivityIcon(activity.type, activity.status)}</div>
+                {!loading && (
+                    <div className="space-y-4">
+                        {activities.map((activity, index) => (
+                            <Card
+                                key={activity.id}
+                                className={`${theme === "dark"
+                                        ? "bg-gray-800 border-gray-700 hover:border-orange-500/50"
+                                        : "bg-white border-gray-200 hover:border-orange-500/50"
+                                    } transition-all duration-300 hover:shadow-lg animate-slide-in-right`}
+                                style={{ animationDelay: `${index * 0.05}s` }}
+                            >
+                                <CardContent className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-shrink-0 mt-1">{getActivityIcon(activity.type)}</div>
 
-                                    <div className="flex-1">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div>
-                                                <h3 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-1`}>
-                                                    {activity.title}
-                                                </h3>
-                                                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                    {activity.description}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2 ml-4">
-                                                <Badge className={`${getDifficultyColor(activity.difficulty)} border text-xs`}>
-                                                    {activity.difficulty}
-                                                </Badge>
-                                                {activity.points > 0 && (
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        +{activity.points} pts
+                                        <div className="flex-1">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <h3 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-1`}>
+                                                        {activity.name}
+                                                    </h3>
+                                                    <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                                                        {activity.result}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 ml-4">
+                                                    <Badge className={`${getDifficultyColor(activity.result)} border text-xs`}>
+                                                        {activity.result}
                                                     </Badge>
-                                                )}
+                                                    {activity.points > 0 && (
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            +{activity.points} pts
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-4 text-sm">
-                                                <div className="flex items-center gap-1">
-                                                    <Clock className="w-4 h-4 text-gray-400" />
-                                                    <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>
-                                                        {formatTimeAgo(activity.timestamp)}
-                                                    </span>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-4 text-sm">
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="w-4 h-4 text-gray-400" />
+                                                        <span className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>
+                                                            {formatTimeAgo(activity.createdAt)}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-4">
+                                                        <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                                                            Duration: {activity.time}
+                                                        </span>
+                                                        <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                                                            Type: {activity.type}
+                                                        </span>
+                                                    </div>
                                                 </div>
 
-                                                {activity.details && (
-                                                    <div className="flex items-center gap-4">
-                                                        {activity.details.runtime && (
-                                                            <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                                Runtime: {activity.details.runtime}
-                                                            </span>
-                                                        )}
-                                                        {activity.details.language && (
-                                                            <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                                {activity.details.language}
-                                                            </span>
-                                                        )}
-                                                        {activity.details.rank && (
-                                                            <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                                Rank: {activity.details.rank}/{activity.details.totalParticipants}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                                                >
+                                                    View Details
+                                                </Button>
                                             </div>
-
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
-                                            >
-                                                View Details
-                                            </Button>
                                         </div>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
 
-                {filteredActivities.length === 0 && (
+                {/* Empty State */}
+                {!loading && activities.length === 0 && (
                     <div className={`text-center py-12 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                         <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
                         <h3 className="text-xl font-semibold mb-2">No activity found</h3>
                         <p>Start solving challenges to see your activity here!</p>
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {!loading && pagination && pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-8">
+                        <div className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
+                            Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
+                            {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of{' '}
+                            {pagination.totalItems} activities
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={!pagination.hasPrevPage}
+                                className="flex items-center gap-1"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                                Previous
+                            </Button>
+
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                                    let pageNum;
+                                    if (pagination.totalPages <= 5) {
+                                        pageNum = i + 1;
+                                    } else {
+                                        const start = Math.max(1, pagination.currentPage - 2);
+                                        const end = Math.min(pagination.totalPages, start + 4);
+                                        pageNum = start + i;
+                                        if (pageNum > end) return null;
+                                    }
+
+                                    return (
+                                        <Button
+                                            key={pageNum}
+                                            variant={pageNum === pagination.currentPage ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => handlePageChange(pageNum)}
+                                            className={`w-10 h-10 p-0 ${
+                                                pageNum === pagination.currentPage 
+                                                    ? "bg-gradient-to-r from-orange-500 to-red-600 text-white" 
+                                                    : ""
+                                            }`}
+                                        >
+                                            {pageNum}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={!pagination.hasNextPage}
+                                className="flex items-center gap-1"
+                            >
+                                Next
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

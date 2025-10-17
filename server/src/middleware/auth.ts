@@ -19,8 +19,6 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        console.log(token)
-
         // Get session from database
         const session = await prisma.session.findUnique({
             where: { sessionToken: token },
@@ -49,8 +47,6 @@ export const optionalAuthenticate = async (req: Request, res: Response, next: Ne
             // No token provided, continue without authentication
             return next();
         }
-
-        console.log(token)
 
         // Get session from database
         const session = await prisma.session.findUnique({

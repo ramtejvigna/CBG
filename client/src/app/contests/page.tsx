@@ -210,8 +210,9 @@ const ContestsPage = () => {
             const slug = generateSlug(contest.title);
             router.push(`/contests/${slug}`)
         } else if (contest.status === "FINISHED") {
-            // Navigate to contest results page
-            router.push(`/contests/${contest.id}/results`)
+            // Navigate to contest results leaderboard page using slug
+            const slug = generateSlug(contest.title);
+            router.push(`/contests/${slug}`)
         }
     }
 

@@ -1,4 +1,4 @@
-import { PrismaClient, Difficulty, ChallengeType } from '@prisma/client';
+import { PrismaClient, Difficulty, ChallengeType, ActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -496,6 +496,38 @@ ORDER BY total_revenue DESC`,
     console.log(`Created ${categories.length} categories`);
     console.log(`Created ${languages.length} languages`);
     console.log(`Created ${allChallenges.length} challenges`);
+
+    // Create sample activities for testing pagination
+    console.log('Creating sample activities...');
+    const activityTypes: ActivityType[] = ['CHALLENGE', 'CONTEST', 'BADGE', 'DISCUSSION'];
+    const activityResults = ['ACCEPTED', 'WRONG_ANSWER', 'TIME_LIMIT_EXCEEDED', 'COMPLETED', 'FAILED', 'PENDING'];
+    const sampleActivities = [];
+
+    for (let i = 0; i < 25; i++) {
+        const typeIndex = Math.floor(Math.random() * activityTypes.length);
+        const resultIndex = Math.floor(Math.random() * activityResults.length);
+        const type = activityTypes[typeIndex]!;
+        const result = activityResults[resultIndex]!;
+        const points = Math.floor(Math.random() * 300) + 50;
+        const timeAgo = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000); // Random time in last 7 days
+
+        sampleActivities.push({
+            userId: demoUser.id,
+            type,
+            name: `Sample ${type.toLowerCase()} activity ${i + 1}`,
+            result,
+            points,
+            time: `${Math.floor(Math.random() * 60) + 1} minutes`,
+            createdAt: timeAgo
+        });
+    }
+
+    await prisma.activity.createMany({
+        data: sampleActivities,
+        skipDuplicates: true
+    });
+
+    console.log(`Created ${sampleActivities.length} sample activities`);
 }
 
 main()

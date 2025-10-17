@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
     Trophy,
     Calendar,
@@ -22,7 +23,10 @@ import {
     XCircle,
     Timer,
     ArrowLeft,
-    Zap
+    Zap,
+    Medal,
+    Award,
+    Crown
 } from 'lucide-react'
 
 interface Challenge {
@@ -35,6 +39,20 @@ interface Challenge {
         title: string
         difficulty: "EASY" | "MEDIUM" | "HARD"
         description: string
+    }
+}
+
+interface Participant {
+    id: string
+    userId: string
+    contestId: string
+    joinedAt: string
+    points: number
+    rank: number | null
+    user: {
+        username: string
+        name: string
+        image: string | null
     }
 }
 
@@ -56,6 +74,7 @@ interface Contest {
         participants: number
     }
     challenges: Challenge[]
+    participants?: Participant[]
 }
 
 const ContestPage = () => {
@@ -68,6 +87,7 @@ const ContestPage = () => {
     const [error, setError] = useState<string | null>(null)
     const [isRegistered, setIsRegistered] = useState(false)
     const [registering, setRegistering] = useState(false)
+    const [activeTab, setActiveTab] = useState<"challenges" | "leaderboard">("challenges")
 
     useEffect(() => {
         const fetchContestDetails = async () => {
@@ -140,6 +160,15 @@ const ContestPage = () => {
             fetchContestDetails()
         }
     }, [slug, user])
+
+    // Set default tab based on contest status
+    useEffect(() => {
+        if (contest?.status === "FINISHED") {
+            setActiveTab("leaderboard")
+        } else {
+            setActiveTab("challenges")
+        }
+    }, [contest?.status])
 
     const getDifficultyColor = (difficulty: string) => {
         switch (difficulty?.toLowerCase()) {
@@ -261,6 +290,32 @@ const ContestPage = () => {
             // Navigate to challenge page with contest context
             const challengeSlug = generateSlug(challenge.challenge.title)
             router.push(`/challenges/${challengeSlug}?contest=${contest.id}`)
+        }
+    }
+
+    const getRankIcon = (rank: number) => {
+        switch (rank) {
+            case 1:
+                return <Crown className="w-5 h-5 text-yellow-500" />
+            case 2:
+                return <Medal className="w-5 h-5 text-gray-400" />
+            case 3:
+                return <Award className="w-5 h-5 text-amber-600" />
+            default:
+                return <span className="w-5 h-5 text-slate-400 font-semibold text-center">{rank}</span>
+        }
+    }
+
+    const getRankColor = (rank: number) => {
+        switch (rank) {
+            case 1:
+                return "text-yellow-500"
+            case 2:
+                return "text-gray-400"
+            case 3:
+                return "text-amber-600"
+            default:
+                return "text-slate-300"
         }
     }
 
@@ -465,82 +520,287 @@ const ContestPage = () => {
                 )}
 
                 <div className="flex items-center flex-wrap gap-8">
-                    {/* Main Content - Challenges Table */}
-                    <div className="lg:col-span-2">
-                        <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
-                            <CardHeader>
-                                <CardTitle className="text-white flex items-center gap-2">
-                                    <Target className="w-5 h-5 text-orange-500" />
-                                    Contest Challenges ({contest.challenges?.length || 0})
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {contest.challenges && contest.challenges.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="border-slate-700 hover:bg-transparent">
-                                                <TableHead className="text-slate-300 font-semibold">#</TableHead>
-                                                <TableHead className="text-slate-300 font-semibold">Challenge</TableHead>
-                                                <TableHead className="text-slate-300 font-semibold">Difficulty</TableHead>
-                                                <TableHead className="text-slate-300 font-semibold text-right">Points</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {contest.challenges.map((challenge, index) => (
-                                                <TableRow
-                                                    key={challenge.id}
-                                                    className={`border-slate-700 ${contest.status === "ONGOING" && isRegistered
-                                                        ? "hover:bg-slate-700/50 cursor-pointer"
-                                                        : "hover:bg-transparent"
-                                                        }`}
-                                                    onClick={() => handleChallengeClick(challenge)}
-                                                >
-                                                    <TableCell className="text-slate-400 font-mono">
-                                                        {challenge.order}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div>
-                                                            <div className="text-white font-medium mb-1">
-                                                                {challenge.challenge.title}
-                                                            </div>
-                                                            <div className="text-slate-400 text-sm line-clamp-2">
-                                                                {challenge.challenge.description}
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={`${getDifficultyColor(challenge.challenge.difficulty)} border text-xs`}
-                                                        >
-                                                            {challenge.challenge.difficulty}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <Zap className="w-4 h-4 text-orange-500" />
-                                                            <span className="text-orange-400 font-semibold">
-                                                                {challenge.points}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                ) : (
-                                    <div className="text-center py-8">
-                                        <Target className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                                        <h3 className="text-lg font-semibold text-slate-300 mb-2">No Challenges Available</h3>
-                                        <p className="text-slate-500">
-                                            {contest.status === "ONGOING" || contest.status === "FINISHED"
-                                                ? "This contest doesn't have any challenges yet."
-                                                : "Challenges will be revealed when the contest starts."}
-                                        </p>
-                                    </div>
+                    {/* Main Content - Tabs for Challenges and Leaderboard */}
+                    <div className="w-full">
+                        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "challenges" | "leaderboard")}>
+                            <TabsList className={`grid w-full ${contest?.status === "FINISHED" ? "grid-cols-2" : "grid-cols-1"} bg-slate-800 border border-slate-700 mb-8`}>
+                                <TabsTrigger
+                                    value="challenges"
+                                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white"
+                                >
+                                    <Target className="w-4 h-4 mr-2" />
+                                    Challenges
+                                </TabsTrigger>
+                                {contest?.status === "FINISHED" && (
+                                    <TabsTrigger
+                                        value="leaderboard"
+                                        className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white"
+                                    >
+                                        <Trophy className="w-4 h-4 mr-2" />
+                                        Leaderboard
+                                    </TabsTrigger>
                                 )}
-                            </CardContent>
-                        </Card>
+                            </TabsList>
+
+                            {/* Challenges Tab */}
+                            <TabsContent value="challenges">
+                                <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
+                                    <CardHeader>
+                                        <CardTitle className="text-white flex items-center gap-2">
+                                            <Target className="w-5 h-5 text-orange-500" />
+                                            Contest Challenges ({contest?.challenges?.length || 0})
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {contest?.challenges && contest.challenges.length > 0 ? (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow className="border-slate-700 hover:bg-transparent">
+                                                        <TableHead className="text-slate-300 font-semibold">#</TableHead>
+                                                        <TableHead className="text-slate-300 font-semibold">Challenge</TableHead>
+                                                        <TableHead className="text-slate-300 font-semibold">Difficulty</TableHead>
+                                                        <TableHead className="text-slate-300 font-semibold text-right">Points</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {contest.challenges.map((challenge, index) => (
+                                                        <TableRow
+                                                            key={challenge.id}
+                                                            className={`border-slate-700 ${contest.status === "ONGOING" && isRegistered
+                                                                ? "hover:bg-slate-700/50 cursor-pointer"
+                                                                : "hover:bg-transparent"
+                                                                }`}
+                                                            onClick={() => handleChallengeClick(challenge)}
+                                                        >
+                                                            <TableCell className="text-slate-400 font-mono">
+                                                                {challenge.order}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <div>
+                                                                    <div className="text-white font-medium mb-1">
+                                                                        {challenge.challenge.title}
+                                                                    </div>
+                                                                    <div className="text-slate-400 text-sm line-clamp-2">
+                                                                        {challenge.challenge.description}
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`${getDifficultyColor(challenge.challenge.difficulty)} border text-xs`}
+                                                                >
+                                                                    {challenge.challenge.difficulty}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className="flex items-center justify-end gap-1">
+                                                                    <Zap className="w-4 h-4 text-orange-500" />
+                                                                    <span className="text-orange-400 font-semibold">
+                                                                        {challenge.points}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <Target className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                                                <h3 className="text-lg font-semibold text-slate-300 mb-2">No Challenges Available</h3>
+                                                <p className="text-slate-500">
+                                                    {contest?.status === "ONGOING" || contest?.status === "FINISHED"
+                                                        ? "This contest doesn't have any challenges yet."
+                                                        : "Challenges will be revealed when the contest starts."}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            {/* Leaderboard Tab - Only for finished contests */}
+                            {contest?.status === "FINISHED" && (
+                                <TabsContent value="leaderboard">
+                                <Card className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700">
+                                    <CardHeader>
+                                        <CardTitle className="text-white flex items-center gap-2">
+                                            <Trophy className="w-5 h-5 text-orange-500" />
+                                            Contest Results
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {contest?.participants && contest.participants.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {/* Top 3 Podium */}
+                                                {contest.participants.slice(0, 3).length >= 3 && (
+                                                    <div className="grid grid-cols-3 gap-4 mb-8">
+                                                        {/* 2nd Place */}
+                                                        <div className="text-center order-1">
+                                                            <div className="relative bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-6 border border-slate-600">
+                                                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                                                    <Medal className="w-8 h-8 text-gray-400" />
+                                                                </div>
+                                                                <div className="mt-4">
+                                                                    <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-600 flex items-center justify-center">
+                                                                        {contest.participants[1]?.user.image ? (
+                                                                            <img
+                                                                                src={contest.participants[1].user.image}
+                                                                                alt={contest.participants[1].user.name || contest.participants[1].user.username}
+                                                                                className="w-full h-full rounded-full object-cover"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className="text-2xl font-bold text-slate-300">
+                                                                                {(contest.participants[1]?.user.name || contest.participants[1]?.user.username)?.[0]?.toUpperCase()}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <h3 className="text-gray-400 font-semibold">
+                                                                        {contest.participants[1]?.user.name || contest.participants[1]?.user.username}
+                                                                    </h3>
+                                                                    <p className="text-orange-400 font-bold text-lg">{contest.participants[1]?.points} pts</p>
+                                                                    <p className="text-gray-500 text-sm">2nd Place</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 1st Place */}
+                                                        <div className="text-center order-2">
+                                                            <div className="relative bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-lg p-6 border border-yellow-500/30">
+                                                                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                                                                    <Crown className="w-10 h-10 text-yellow-500" />
+                                                                </div>
+                                                                <div className="mt-6">
+                                                                    <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-yellow-500/20 flex items-center justify-center border-2 border-yellow-500/50">
+                                                                        {contest.participants[0]?.user.image ? (
+                                                                            <img
+                                                                                src={contest.participants[0].user.image}
+                                                                                alt={contest.participants[0].user.name || contest.participants[0].user.username}
+                                                                                className="w-full h-full rounded-full object-cover"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className="text-3xl font-bold text-yellow-500">
+                                                                                {(contest.participants[0]?.user.name || contest.participants[0]?.user.username)?.[0]?.toUpperCase()}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <h3 className="text-yellow-500 font-bold text-lg">
+                                                                        {contest.participants[0]?.user.name || contest.participants[0]?.user.username}
+                                                                    </h3>
+                                                                    <p className="text-orange-400 font-bold text-2xl">{contest.participants[0]?.points} pts</p>
+                                                                    <p className="text-yellow-500 font-semibold">Champion</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 3rd Place */}
+                                                        <div className="text-center order-3">
+                                                            <div className="relative bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg p-6 border border-slate-600">
+                                                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                                                    <Award className="w-8 h-8 text-amber-600" />
+                                                                </div>
+                                                                <div className="mt-4">
+                                                                    <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-600 flex items-center justify-center">
+                                                                        {contest.participants[2]?.user.image ? (
+                                                                            <img
+                                                                                src={contest.participants[2].user.image}
+                                                                                alt={contest.participants[2].user.name || contest.participants[2].user.username}
+                                                                                className="w-full h-full rounded-full object-cover"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className="text-2xl font-bold text-slate-300">
+                                                                                {(contest.participants[2]?.user.name || contest.participants[2]?.user.username)?.[0]?.toUpperCase()}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <h3 className="text-amber-600 font-semibold">
+                                                                        {contest.participants[2]?.user.name || contest.participants[2]?.user.username}
+                                                                    </h3>
+                                                                    <p className="text-orange-400 font-bold text-lg">{contest.participants[2]?.points} pts</p>
+                                                                    <p className="text-amber-600 text-sm">3rd Place</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Full Leaderboard Table */}
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow className="border-slate-700 hover:bg-transparent">
+                                                            <TableHead className="text-slate-300 font-semibold">Rank</TableHead>
+                                                            <TableHead className="text-slate-300 font-semibold">Participant</TableHead>
+                                                            <TableHead className="text-slate-300 font-semibold text-right">Points</TableHead>
+                                                            <TableHead className="text-slate-300 font-semibold text-right">Joined</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {contest.participants.map((participant, index) => (
+                                                            <TableRow key={participant.id} className="border-slate-700 hover:bg-slate-700/50">
+                                                                <TableCell>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {getRankIcon(index + 1)}
+                                                                        <span className={`font-semibold ${getRankColor(index + 1)}`}>
+                                                                            #{index + 1}
+                                                                        </span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center flex-shrink-0">
+                                                                            {participant.user.image ? (
+                                                                                <img
+                                                                                    src={participant.user.image}
+                                                                                    alt={participant.user.name || participant.user.username}
+                                                                                    className="w-full h-full rounded-full object-cover"
+                                                                                />
+                                                                            ) : (
+                                                                                <span className="text-lg font-semibold text-slate-300">
+                                                                                    {(participant.user.name || participant.user.username)?.[0]?.toUpperCase()}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="text-white font-medium">
+                                                                                {participant.user.name || participant.user.username}
+                                                                            </div>
+                                                                            <div className="text-slate-400 text-sm">
+                                                                                @{participant.user.username}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                    <div className="flex items-center justify-end gap-1">
+                                                                        <Zap className="w-4 h-4 text-orange-500" />
+                                                                        <span className="text-orange-400 font-bold text-lg">
+                                                                            {participant.points}
+                                                                        </span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                    <span className="text-slate-400 text-sm">
+                                                                        {new Date(participant.joinedAt).toLocaleDateString()}
+                                                                    </span>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <Trophy className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                                                <h3 className="text-lg font-semibold text-slate-300 mb-2">No Results Available</h3>
+                                                <p className="text-slate-500">No participants have been ranked yet.</p>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                            )}
+                        </Tabs>
                     </div>
                 </div>
             </div>

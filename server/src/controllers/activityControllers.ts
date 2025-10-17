@@ -9,10 +9,32 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User ID is required' });
         }
 
+        const { 
+            page = 1, 
+            limit = 10, 
+            type,
+            sortBy = 'createdAt',
+            sortOrder = 'desc'
+        } = req.query;
+
+        const pageNum = Math.max(1, parseInt(page as string));
+        const limitNum = Math.min(50, Math.max(1, parseInt(limit as string))); // Max 50 items per page
+        const skip = (pageNum - 1) * limitNum;
+
+        // Build where clause
+        const whereClause: any = { userId };
+        if (type && type !== 'all') {
+            whereClause.type = type;
+        }
+
+        // Get total count for pagination
+        const totalCount = await prisma.activity.count({
+            where: whereClause
+        });
+
+        // Get paginated activities
         const activities = await prisma.activity.findMany({
-            where: {
-                userId
-            },
+            where: whereClause,
             include: {
                 user: {
                     select: {
@@ -22,23 +44,46 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
                 }
             },
             orderBy: {
-                createdAt: 'desc'
+                [sortBy as string]: sortOrder
+            },
+            skip,
+            take: limitNum
+        });
+
+        // Get overall statistics (not paginated)
+        const allActivities = await prisma.activity.findMany({
+            where: { userId },
+            select: {
+                type: true,
+                points: true
             }
         });
 
         // Group activities by type for statistics
-        const stats = activities.reduce((acc, activity) => {
+        const stats = allActivities.reduce((acc, activity) => {
             acc[activity.type] = (acc[activity.type] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
 
         // Calculate total points
-        const totalPoints = activities.reduce((sum, activity) => sum + activity.points, 0);
+        const totalPoints = allActivities.reduce((sum, activity) => sum + activity.points, 0);
+
+        const totalPages = Math.ceil(totalCount / limitNum);
+        const hasNextPage = pageNum < totalPages;
+        const hasPrevPage = pageNum > 1;
 
         res.json({
             activities,
+            pagination: {
+                currentPage: pageNum,
+                totalPages,
+                totalItems: totalCount,
+                itemsPerPage: limitNum,
+                hasNextPage,
+                hasPrevPage
+            },
             statistics: {
-                totalActivities: activities.length,
+                totalActivities: allActivities.length,
                 typeBreakdown: stats,
                 totalPoints
             }

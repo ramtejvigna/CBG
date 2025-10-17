@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Split from "react-split"
+import { toast } from "react-hot-toast"
 import { useTheme } from "@/context/ThemeContext"
 import {
     ChevronLeft,
@@ -22,7 +23,6 @@ import {
 import Loader from "@/components/Loader"
 import CodeEditor from "@/components/CodeEditor"
 import Link from "next/link"
-import toast from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useChallenge from "@/hooks/useChallenge"
@@ -74,6 +74,7 @@ interface Challenge {
         avgRuntime: number
         avgMemory: number
     }
+    userLikeStatus?: boolean | null
 }
 
 interface TestResult {
@@ -114,6 +115,10 @@ const ChallengePage = () => {
     const [submissions, setSubmissions] = useState<Submission[]>([])
     const [submissionsLoading, setSubmissionsLoading] = useState(false)
     const [contestInfo, setContestInfo] = useState<{ title: string, status: string } | null>(null)
+    const [userLikeStatus, setUserLikeStatus] = useState<boolean | null>(null)
+    const [likesCount, setLikesCount] = useState<number>(0)
+    const [dislikesCount, setDislikesCount] = useState<number>(0)
+    const [isLikeLoading, setIsLikeLoading] = useState(false)
 
     // Determine if challenge is solved (accepted submission exists or current submission accepted)
     const hasAcceptedSubmission = submissions.some((s) => s.status === "ACCEPTED")
@@ -123,7 +128,19 @@ const ChallengePage = () => {
     useEffect(() => {
         const fetchChallenge = async () => {
             try {
-                setChallenge(challengeData?.challenge || null);
+                const challenge = challengeData?.challenge;
+                setChallenge(challenge || null);
+                
+                if (challenge) {
+                    // Initialize likes and dislikes from challenge data
+                    setLikesCount(challenge._count?.likes || 0);
+                    setDislikesCount(challenge.dislikes || 0);
+                    
+                    // Fetch user-specific like status if authenticated
+                    if (session?.user?.id) {
+                        await fetchChallengeStats(challenge.id);
+                    }
+                }
             } catch (error) {
                 console.error("Error fetching challenge:", error)
                 toast.error("Failed to load challenge")
@@ -135,7 +152,7 @@ const ChallengePage = () => {
         if(challengeData) {
             fetchChallenge()
         }
-    }, [challengeData, slug])
+    }, [challengeData, slug, session?.user?.id])
 
     // Fetch contest information if contest ID is present
     useEffect(() => {
@@ -445,6 +462,78 @@ int main() {
         }
     }, [selectedLanguage, code])
 
+    // Fetch challenge stats (likes/dislikes and user status)
+    const fetchChallengeStats = useCallback(async (challengeId: string) => {
+        try {
+            const token = localStorage.getItem('auth-token')
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            }
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`
+            }
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challengeId}/stats`, {
+                headers
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                if (data.success) {
+                    setLikesCount(data.likes)
+                    setDislikesCount(data.dislikes)
+                    setUserLikeStatus(data.userLikeStatus)
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching challenge stats:", error)
+        }
+    }, [])
+
+    // Handle like/dislike action
+    const handleLikeToggle = async (isLike: boolean) => {
+        if (!session?.user?.id) {
+            toast.error("Please sign in to like challenges")
+            router.push("/login")
+            return
+        }
+
+        if (!challenge) return
+
+        setIsLikeLoading(true)
+        try {
+            const token = localStorage.getItem('auth-token')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challenge.id}/like`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ isLike })
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                if (data.success) {
+                    setLikesCount(data.likes)
+                    setDislikesCount(data.dislikes)
+                    setUserLikeStatus(data.userLikeStatus)
+                    
+                    const action = data.userLikeStatus === true ? 'liked' : data.userLikeStatus === false ? 'disliked' : 'removed your reaction from'
+                    toast.success(`You ${action} this challenge`)
+                }
+            } else {
+                const error = await response.json()
+                toast.error(error.message || "Failed to update like status")
+            }
+        } catch (error) {
+            console.error("Error toggling like:", error)
+            toast.error("Failed to update like status")
+        } finally {
+            setIsLikeLoading(false)
+        }
+    }
+
     // Fetch submissions when user session is available
     useEffect(() => {
         if (session?.user?.id && challenge) {
@@ -593,14 +682,32 @@ int main() {
                                             }`}
                                     >
                                         <div className="flex items-center space-x-6">
-                                            <div className="flex items-center space-x-1">
-                                                <ThumbsUp className="w-4 h-4" />
-                                                <span>{challenge.likes}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-1">
-                                                <ThumbsDown className="w-4 h-4" />
-                                                <span>{challenge.dislikes || 0}</span>
-                                            </div>
+                                            <button
+                                                onClick={() => handleLikeToggle(true)}
+                                                disabled={isLikeLoading}
+                                                className={`flex items-center space-x-1 transition-colors duration-200 hover:text-green-500 disabled:opacity-50 ${
+                                                    userLikeStatus === true 
+                                                        ? "text-green-500" 
+                                                        : isDark ? "text-gray-400 hover:text-green-400" : "text-gray-600 hover:text-green-500"
+                                                }`}
+                                                title={userLikeStatus === true ? "Remove like" : "Like this challenge"}
+                                            >
+                                                <ThumbsUp className={`w-4 h-4 ${userLikeStatus === true ? "fill-current" : ""}`} />
+                                                <span>{likesCount}</span>
+                                            </button>
+                                            <button
+                                                onClick={() => handleLikeToggle(false)}
+                                                disabled={isLikeLoading}
+                                                className={`flex items-center space-x-1 transition-colors duration-200 hover:text-red-500 disabled:opacity-50 ${
+                                                    userLikeStatus === false 
+                                                        ? "text-red-500" 
+                                                        : isDark ? "text-gray-400 hover:text-red-400" : "text-gray-600 hover:text-red-500"
+                                                }`}
+                                                title={userLikeStatus === false ? "Remove dislike" : "Dislike this challenge"}
+                                            >
+                                                <ThumbsDown className={`w-4 h-4 ${userLikeStatus === false ? "fill-current" : ""}`} />
+                                                <span>{dislikesCount}</span>
+                                            </button>
                                             <div className="flex items-center space-x-1">
                                                 <Share className="w-4 h-4" />
                                                 <span>Share</span>

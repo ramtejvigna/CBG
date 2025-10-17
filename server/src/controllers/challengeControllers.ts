@@ -69,7 +69,33 @@ export const getChallengeBySlug = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        res.json(bestMatch);
+        // Get proper likes and dislikes count
+        const likesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId: bestMatch.id,
+                isLike: true
+            }
+        });
+
+        const dislikesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId: bestMatch.id,
+                isLike: false
+            }
+        });
+
+        // Add the proper counts to the response
+        const responseData = {
+            ...bestMatch,
+            likes: likesCount,
+            dislikes: dislikesCount,
+            _count: {
+                ...bestMatch._count,
+                likes: likesCount
+            }
+        };
+
+        res.json(responseData);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error', error });
     }
@@ -117,7 +143,33 @@ export const getChallengeById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        res.json(challenge);
+        // Get proper likes and dislikes count
+        const likesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId: challenge.id,
+                isLike: true
+            }
+        });
+
+        const dislikesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId: challenge.id,
+                isLike: false
+            }
+        });
+
+        // Add the proper counts to the response
+        const responseData = {
+            ...challenge,
+            likes: likesCount,
+            dislikes: dislikesCount,
+            _count: {
+                ...challenge._count,
+                likes: likesCount
+            }
+        };
+
+        res.json(responseData);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error', error });
     }
@@ -372,6 +424,170 @@ export const updateChallenge = async (req: Request, res: Response) => {
 
         res.json(challenge);
     } catch (error) {
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const likeChallengeToggle = async (req: Request, res: Response) => {
+    try {
+        const { id: challengeId } = req.params;
+        const { isLike } = req.body;
+        
+        if (!challengeId) {
+            return res.status(400).json({ message: 'Challenge ID is required' });
+        }
+
+        if (!req.user?.id) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        const userId = req.user.id;
+
+        // Check if challenge exists
+        const challenge = await prisma.challenge.findUnique({
+            where: { id: challengeId },
+            select: { id: true }
+        });
+
+        if (!challenge) {
+            return res.status(404).json({ message: 'Challenge not found' });
+        }
+
+        // Check if user has already liked/disliked this challenge
+        const existingLike = await prisma.challengeLike.findUnique({
+            where: {
+                userId_challengeId: {
+                    userId,
+                    challengeId
+                }
+            }
+        });
+
+        if (existingLike) {
+            if (existingLike.isLike === isLike) {
+                // User is clicking the same action, so remove the like/dislike
+                await prisma.challengeLike.delete({
+                    where: {
+                        userId_challengeId: {
+                            userId,
+                            challengeId
+                        }
+                    }
+                });
+            } else {
+                // User is switching from like to dislike or vice versa
+                await prisma.challengeLike.update({
+                    where: {
+                        userId_challengeId: {
+                            userId,
+                            challengeId
+                        }
+                    },
+                    data: {
+                        isLike
+                    }
+                });
+            }
+        } else {
+            // User hasn't liked/disliked this challenge yet, create new record
+            await prisma.challengeLike.create({
+                data: {
+                    userId,
+                    challengeId,
+                    isLike
+                }
+            });
+        }
+
+        // Get updated counts
+        const likesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId,
+                isLike: true
+            }
+        });
+
+        const dislikesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId,
+                isLike: false
+            }
+        });
+
+        // Get current user's like status
+        const userLikeStatus = await prisma.challengeLike.findUnique({
+            where: {
+                userId_challengeId: {
+                    userId,
+                    challengeId
+                }
+            },
+            select: {
+                isLike: true
+            }
+        });
+
+        res.json({
+            success: true,
+            likes: likesCount,
+            dislikes: dislikesCount,
+            userLikeStatus: userLikeStatus?.isLike ?? null
+        });
+    } catch (error) {
+        console.error('Error toggling challenge like:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+export const getChallengeStats = async (req: Request, res: Response) => {
+    try {
+        const { id: challengeId } = req.params;
+        const userId = req.user?.id;
+        
+        if (!challengeId) {
+            return res.status(400).json({ message: 'Challenge ID is required' });
+        }
+
+        // Get like/dislike counts
+        const likesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId,
+                isLike: true
+            }
+        });
+
+        const dislikesCount = await prisma.challengeLike.count({
+            where: {
+                challengeId,
+                isLike: false
+            }
+        });
+
+        // Get current user's like status if authenticated
+        let userLikeStatus = null;
+        if (userId) {
+            const userLike = await prisma.challengeLike.findUnique({
+                where: {
+                    userId_challengeId: {
+                        userId,
+                        challengeId
+                    }
+                },
+                select: {
+                    isLike: true
+                }
+            });
+            userLikeStatus = userLike?.isLike ?? null;
+        }
+
+        res.json({
+            success: true,
+            likes: likesCount,
+            dislikes: dislikesCount,
+            userLikeStatus
+        });
+    } catch (error) {
+        console.error('Error fetching challenge stats:', error);
         res.status(500).json({ message: 'Internal server error', error });
     }
 };
