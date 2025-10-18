@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import NavBar from "@/components/NavBar"
-import { useTheme } from "@/context/ThemeContext"
+import { useThemeStore } from "@/lib/store/themeStore"
+import { useAuthStore } from "@/lib/store"
 import useActivities from "@/hooks/useActivities"
 import { ActivityListSkeleton } from "@/components/ActivitySkeleton"
 import { Code, Trophy, Star, Clock, CheckCircle, XCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
@@ -11,9 +12,17 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 
 const ActivityFeedPage = () => {
-    const { theme } = useTheme()
+    const { theme } = useThemeStore()
+    const { user, loading: authLoading, checkAuth } = useAuthStore()
     const [activeFilter, setActiveFilter] = useState("all")
     const [currentPage, setCurrentPage] = useState(1)
+    
+    // Check auth on mount if user is not loaded
+    useEffect(() => {
+        if (!user && !authLoading) {
+            checkAuth()
+        }
+    }, [user, authLoading, checkAuth])
     
     const { 
         activities, 
@@ -27,27 +36,63 @@ const ActivityFeedPage = () => {
     } = useActivities({
         page: currentPage,
         limit: 8,
-        type: activeFilter
+        type: activeFilter === "all" ? undefined : activeFilter
     })
 
-    // Fallback stats for when data is loading
-    const defaultStats = {
-        totalPoints: 0,
-        problemsSolved: 0,
-        currentStreak: 0,
-        contestsParticipated: 0,
-        achievements: 0,
-        averageRating: 0,
+    // Show loading if auth is still loading
+    if (authLoading) {
+        return (
+            <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"}`}>
+                <div className="container mx-auto px-6 py-8">
+                    <ActivityListSkeleton theme={theme} />
+                </div>
+            </div>
+        )
     }
 
-    const stats = statistics ? {
-        totalPoints: statistics.totalPoints,
-        problemsSolved: statistics.typeBreakdown.CHALLENGE || 0,
-        currentStreak: 7, // This would come from user profile
-        contestsParticipated: statistics.typeBreakdown.CONTEST || 0,
-        achievements: statistics.typeBreakdown.BADGE || 0,
-        averageRating: 1456, // This would come from user profile
-    } : defaultStats
+    // Show login prompt if no user
+    if (!user) {
+        return (
+            <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"}`}>
+                <div className="container mx-auto px-6 py-8">
+                    <div className="text-center">
+                        <h1 className={`text-2xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-4`}>
+                            Please log in to view your activity feed
+                        </h1>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Get user profile data for stats
+    const userProfile = user?.userProfile
+    
+    // Fallback stats for when data is loading
+    const defaultStats = {
+        totalPoints: userProfile?.points || 0,
+        problemsSolved: userProfile?.solved || 0,
+        currentStreak: userProfile?.streakDays || 0,
+        contestsParticipated: 0,
+        achievements: userProfile?.badges?.length || 0,
+        averageRating: userProfile?.rank ? (2000 - userProfile.rank * 10) : 1200, // Calculate rating based on rank
+    }
+
+    // Combine activity statistics with user profile data for comprehensive stats
+    const stats = {
+        // Total points from user profile (accumulated over time)
+        totalPoints: userProfile?.points || 0,
+        // Problems solved from user profile (total count)
+        problemsSolved: userProfile?.solved || 0,
+        // Current streak from user profile
+        currentStreak: userProfile?.streakDays || 0,
+        // Contest activities from activity statistics (activity-based count)
+        contestsParticipated: statistics?.typeBreakdown?.CONTEST || 0,
+        // Badge activities from activity statistics (activity-based count)
+        achievements: statistics?.typeBreakdown?.BADGE || 0,
+        // Rating calculated from user rank
+        averageRating: userProfile?.rank ? Math.max(800, 2000 - userProfile.rank * 5) : 1200,
+    }
 
     const getActivityIcon = (type: string) => {
         switch (type) {
@@ -64,23 +109,90 @@ const ActivityFeedPage = () => {
         }
     }
 
-    const getDifficultyColor = (result: string) => {
-        switch (result.toLowerCase()) {
-            case "accepted":
-            case "completed":
-            case "success":
-                return "bg-green-500/20 text-green-400 border-green-500/30"
-            case "wrong_answer":
-            case "failed":
-                return "bg-red-500/20 text-red-400 border-red-500/30"
-            case "time_limit_exceeded":
-            case "memory_limit_exceeded":
-                return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-            case "pending":
-                return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-            default:
-                return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    const getResultColor = (result: string) => {
+        const lowerResult = result.toLowerCase();
+        
+        // Success states
+        if (lowerResult.includes('accepted') || 
+            lowerResult.includes('completed') || 
+            lowerResult.includes('success') ||
+            lowerResult.includes('solved') ||
+            lowerResult === 'earned' ||
+            lowerResult === 'achieved') {
+            return "bg-green-500/20 text-green-400 border-green-500/30"
         }
+        
+        // Error states
+        if (lowerResult.includes('wrong') || 
+            lowerResult.includes('failed') ||
+            lowerResult.includes('error') ||
+            lowerResult.includes('rejected')) {
+            return "bg-red-500/20 text-red-400 border-red-500/30"
+        }
+        
+        // Warning states
+        if (lowerResult.includes('time_limit') || 
+            lowerResult.includes('memory_limit') ||
+            lowerResult.includes('timeout') ||
+            lowerResult.includes('partial')) {
+            return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+        }
+        
+        // Processing states
+        if (lowerResult.includes('pending') || 
+            lowerResult.includes('running') ||
+            lowerResult.includes('in_progress') ||
+            lowerResult.includes('submitted')) {
+            return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+        }
+        
+        // Contest states
+        if (lowerResult.includes('participated') ||
+            lowerResult.includes('joined') ||
+            lowerResult.includes('registered')) {
+            return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+        }
+        
+        // Default
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+    }
+
+    const formatActivityDescription = (activity: any) => {
+        const baseDescription = activity.result;
+        
+        switch (activity.type) {
+            case "CHALLENGE":
+                return `Challenge ${baseDescription.toLowerCase()}`;
+            case "CONTEST":
+                return `Contest ${baseDescription.toLowerCase()}`;
+            case "BADGE":
+                return `Badge ${baseDescription.toLowerCase()}`;
+            case "DISCUSSION":
+                return `Discussion ${baseDescription.toLowerCase()}`;
+            default:
+                return baseDescription;
+        }
+    }
+
+    const formatActivityTime = (time: string) => {
+        // If time is in format like "00:02:30" (duration), format it nicely
+        if (time && time.includes(':')) {
+            const parts = time.split(':');
+            const hours = parseInt(parts[0]);
+            const minutes = parseInt(parts[1]);
+            const seconds = parseInt(parts[2]);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            } else {
+                return `${seconds}s`;
+            }
+        }
+        
+        // If it's a different format, return as is
+        return time || 'N/A';
     }
 
     const formatTimeAgo = (timestamp: string) => {
@@ -96,8 +208,9 @@ const ActivityFeedPage = () => {
 
     const handleFilterChange = (filter: string) => {
         setActiveFilter(filter)
-        setFilter(filter)
+        setFilter(filter === "all" ? "all" : filter)
         setCurrentPage(1)
+        setPage(1)
     }
 
     const handlePageChange = (page: number) => {
@@ -106,21 +219,30 @@ const ActivityFeedPage = () => {
     }
 
     const filters = [
-        { key: "all", label: "All Activity", count: statistics?.totalActivities || 0 },
+        { 
+            key: "all", 
+            label: "All Activity", 
+            count: statistics?.totalActivities || 0 
+        },
         {
             key: "CHALLENGE",
             label: "Challenges",
-            count: statistics?.typeBreakdown.CHALLENGE || 0,
+            count: statistics?.typeBreakdown?.CHALLENGE || 0,
         },
         {
             key: "CONTEST",
-            label: "Contests",
-            count: statistics?.typeBreakdown.CONTEST || 0,
+            label: "Contests", 
+            count: statistics?.typeBreakdown?.CONTEST || 0,
         },
         {
             key: "BADGE",
-            label: "Achievements",
-            count: statistics?.typeBreakdown.BADGE || 0,
+            label: "Badges",
+            count: statistics?.typeBreakdown?.BADGE || 0,
+        },
+        {
+            key: "DISCUSSION",
+            label: "Discussions",
+            count: statistics?.typeBreakdown?.DISCUSSION || 0,
         },
     ]
 
@@ -135,7 +257,7 @@ const ActivityFeedPage = () => {
                         <p className={theme === "dark" ? "text-gray-400" : "text-gray-600"}>{error}</p>
                         <Button 
                             onClick={() => window.location.reload()} 
-                            className="mt-4"
+                            className="mt-4 bg-gradient-to-r from-orange-500 to-red-600 text-white hover:from-orange-600 hover:to-red-700"
                         >
                             Try Again
                         </Button>
@@ -160,24 +282,36 @@ const ActivityFeedPage = () => {
                     {/* Stats Cards */}
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
                         {[
-                            { label: "Total Points", value: stats.totalPoints, icon: <Star className="w-5 h-5 text-yellow-500" /> },
+                            { 
+                                label: "Total Points", 
+                                value: stats.totalPoints.toLocaleString(), 
+                                icon: <Star className="w-5 h-5 text-yellow-500" /> 
+                            },
                             {
                                 label: "Problems Solved",
-                                value: stats.problemsSolved,
+                                value: stats.problemsSolved.toLocaleString(),
                                 icon: <CheckCircle className="w-5 h-5 text-green-500" />,
                             },
                             {
                                 label: "Current Streak",
-                                value: `${stats.currentStreak} days`,
+                                value: `${stats.currentStreak} day${stats.currentStreak !== 1 ? 's' : ''}`,
                                 icon: <Zap className="w-5 h-5 text-blue-500" />,
                             },
                             {
-                                label: "Contests",
-                                value: stats.contestsParticipated,
+                                label: "Contest Activities",
+                                value: stats.contestsParticipated.toLocaleString(),
                                 icon: <Trophy className="w-5 h-5 text-purple-500" />,
                             },
-                            { label: "Achievements", value: stats.achievements, icon: <Award className="w-5 h-5 text-orange-500" /> },
-                            { label: "Rating", value: stats.averageRating, icon: <TrendingUp className="w-5 h-5 text-red-500" /> },
+                            { 
+                                label: "Badge Activities", 
+                                value: stats.achievements.toLocaleString(), 
+                                icon: <Award className="w-5 h-5 text-orange-500" /> 
+                            },
+                            { 
+                                label: "Current Rating", 
+                                value: stats.averageRating.toLocaleString(), 
+                                icon: <TrendingUp className="w-5 h-5 text-red-500" /> 
+                            },
                         ].map((stat, index) => (
                             <Card
                                 key={stat.label}
@@ -192,7 +326,11 @@ const ActivityFeedPage = () => {
                                                 {stat.label}
                                             </p>
                                             <p className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                                                {stat.value}
+                                                {loading && !stat.value ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    stat.value
+                                                )}
                                             </p>
                                         </div>
                                         {stat.icon}
@@ -202,31 +340,39 @@ const ActivityFeedPage = () => {
                         ))}
                     </div>
 
-                    {/* Filter Tabs */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex space-x-1 bg-gray-200 dark:bg-gray-800 p-1 rounded-lg w-fit">
-                            {filters.map((filter) => (
-                                <button
-                                    key={filter.key}
-                                    onClick={() => handleFilterChange(filter.key)}
-                                    className={`px-4 py-2 rounded-md font-medium transition-all duration-300 text-sm ${activeFilter === filter.key
-                                            ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg"
-                                            : theme === "dark"
-                                                ? "text-gray-400 hover:text-white hover:bg-gray-700"
-                                                : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-                                        }`}
-                                >
-                                    {filter.label} ({filter.count})
-                                </button>
-                            ))}
-                        </div>
-                        
-                        {/* Refresh Button */}
+                {/* Filter Tabs */}
+                <div className="flex items-center justify-between">
+                    <div className={`flex space-x-1 p-1 rounded-lg w-fit ${
+                        theme === "dark" ? "bg-gray-800" : "bg-gray-200"
+                    }`}>
+                        {filters.map((filter) => (
+                            <button
+                                key={filter.key}
+                                onClick={() => handleFilterChange(filter.key)}
+                                className={`px-4 py-2 rounded-md font-medium transition-all duration-300 text-sm ${activeFilter === filter.key
+                                        ? "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg"
+                                        : theme === "dark"
+                                            ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                    }`}
+                            >
+                                {filter.label} {loading ? (
+                                    <Loader2 className="w-3 h-3 inline ml-1 animate-spin" />
+                                ) : (
+                                    `(${filter.count})`
+                                )}
+                            </button>
+                        ))}
+                    </div>                        {/* Refresh Button */}
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={refetch}
-                            className="flex items-center gap-2"
+                            className={`flex items-center gap-2 ${
+                                theme === "dark" 
+                                    ? "border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700" 
+                                    : "border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            }`}
                             disabled={loading}
                         >
                             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -239,7 +385,7 @@ const ActivityFeedPage = () => {
                 {loading && <ActivityListSkeleton theme={theme} />}
 
                 {/* Activity Feed */}
-                {!loading && (
+                {!loading && activities && activities.length > 0 && (
                     <div className="space-y-4">
                         {activities.map((activity, index) => (
                             <Card
@@ -261,11 +407,11 @@ const ActivityFeedPage = () => {
                                                         {activity.name}
                                                     </h3>
                                                     <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                        {activity.result}
+                                                        {formatActivityDescription(activity)}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-4">
-                                                    <Badge className={`${getDifficultyColor(activity.result)} border text-xs`}>
+                                                    <Badge className={`${getResultColor(activity.result)} border text-xs`}>
                                                         {activity.result}
                                                     </Badge>
                                                     {activity.points > 0 && (
@@ -287,7 +433,7 @@ const ActivityFeedPage = () => {
 
                                                     <div className="flex items-center gap-4">
                                                         <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                            Duration: {activity.time}
+                                                            Duration: {formatActivityTime(activity.time)}
                                                         </span>
                                                         <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                                                             Type: {activity.type}
@@ -312,16 +458,45 @@ const ActivityFeedPage = () => {
                 )}
 
                 {/* Empty State */}
-                {!loading && activities.length === 0 && (
+                {!loading && (!activities || activities.length === 0) && (
                     <div className={`text-center py-12 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                        <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                        <h3 className="text-xl font-semibold mb-2">No activity found</h3>
-                        <p>Start solving challenges to see your activity here!</p>
+                        {getActivityIcon(activeFilter === "all" ? "CHALLENGE" : activeFilter)}
+                        <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                            {activeFilter === "all" ? (
+                                <Target className="w-16 h-16 opacity-50" />
+                            ) : activeFilter === "CHALLENGE" ? (
+                                <Code className="w-16 h-16 opacity-50" />
+                            ) : activeFilter === "CONTEST" ? (
+                                <Trophy className="w-16 h-16 opacity-50" />
+                            ) : activeFilter === "BADGE" ? (
+                                <Award className="w-16 h-16 opacity-50" />
+                            ) : (
+                                <Target className="w-16 h-16 opacity-50" />
+                            )}
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2">
+                            {activeFilter === "all" 
+                                ? "No activity found" 
+                                : `No ${activeFilter.toLowerCase()} activities found`
+                            }
+                        </h3>
+                        <p>
+                            {activeFilter === "all" 
+                                ? "Start solving challenges to see your activity here!" 
+                                : activeFilter === "CHALLENGE"
+                                ? "Start solving challenges to see your challenge activities!"
+                                : activeFilter === "CONTEST"
+                                ? "Participate in contests to see your contest activities!"
+                                : activeFilter === "BADGE"
+                                ? "Earn badges to see your badge activities!"
+                                : "Start participating to see your activities!"
+                            }
+                        </p>
                     </div>
                 )}
 
                 {/* Pagination */}
-                {!loading && pagination && pagination.totalPages > 1 && (
+                {!loading && pagination && pagination.totalPages > 1 && activities && activities.length > 0 && (
                     <div className="flex items-center justify-between mt-8">
                         <div className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                             Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to{' '}
@@ -335,7 +510,11 @@ const ActivityFeedPage = () => {
                                 size="sm"
                                 onClick={() => handlePageChange(currentPage - 1)}
                                 disabled={!pagination.hasPrevPage}
-                                className="flex items-center gap-1"
+                                className={`flex items-center gap-1 ${
+                                    theme === "dark" 
+                                        ? "border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700" 
+                                        : "border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                                }`}
                             >
                                 <ChevronLeft className="w-4 h-4" />
                                 Previous
@@ -361,8 +540,10 @@ const ActivityFeedPage = () => {
                                             onClick={() => handlePageChange(pageNum)}
                                             className={`w-10 h-10 p-0 ${
                                                 pageNum === pagination.currentPage 
-                                                    ? "bg-gradient-to-r from-orange-500 to-red-600 text-white" 
-                                                    : ""
+                                                    ? "bg-gradient-to-r from-orange-500 to-red-600 text-white border-0" 
+                                                    : theme === "dark"
+                                                        ? "border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700"
+                                                        : "border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                                             }`}
                                         >
                                             {pageNum}
@@ -376,7 +557,11 @@ const ActivityFeedPage = () => {
                                 size="sm"
                                 onClick={() => handlePageChange(currentPage + 1)}
                                 disabled={!pagination.hasNextPage}
-                                className="flex items-center gap-1"
+                                className={`flex items-center gap-1 ${
+                                    theme === "dark" 
+                                        ? "border-gray-700 text-gray-400 hover:text-white hover:bg-gray-700" 
+                                        : "border-gray-300 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                                }`}
                             >
                                 Next
                                 <ChevronRight className="w-4 h-4" />

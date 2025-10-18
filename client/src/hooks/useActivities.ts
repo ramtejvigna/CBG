@@ -71,13 +71,18 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
     const { user } = useAuthStore();
 
     const fetchActivities = useCallback(async () => {
+        if (!user?.username) {
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             setError(null);
 
             const queryParams = new URLSearchParams();
             Object.entries(currentParams).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
+                if (value !== undefined && value !== null && value !== "" && value !== "all") {
                     queryParams.append(key, value.toString());
                 }
             });
@@ -86,9 +91,12 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
 
             // Use environment variable or fallback to relative path for development
             const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-            const response = await fetch(`${baseUrl}/api/profile/${user?.username}/activity`, {
+            const url = `${baseUrl}/api/activity${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+            
+            const response = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 },
             });
 
@@ -98,20 +106,22 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
 
             const data: ActivitiesResponse = await response.json();
             
-            setActivities(data.activities);
-            setPagination(data.pagination);
-            setStatistics(data.statistics);
+            setActivities(data.activities || []);
+            setPagination(data.pagination || null);
+            setStatistics(data.statistics || null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             console.error('Error fetching activities:', err);
         } finally {
             setLoading(false);
         }
-    }, [currentParams]);
+    }, [currentParams, user?.username]);
 
     useEffect(() => {
-        fetchActivities();
-    }, [fetchActivities]);
+        if (user?.username) {
+            fetchActivities();
+        }
+    }, [fetchActivities, user?.username]);
 
     const refetch = useCallback(async () => {
         await fetchActivities();
@@ -122,7 +132,8 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
     }, []);
 
     const setFilter = useCallback((type: string) => {
-        setCurrentParams(prev => ({ ...prev, type, page: 1 })); // Reset to page 1 when filtering
+        const filterType = type === "all" ? undefined : type;
+        setCurrentParams(prev => ({ ...prev, type: filterType, page: 1 })); // Reset to page 1 when filtering
     }, []);
 
     return {
