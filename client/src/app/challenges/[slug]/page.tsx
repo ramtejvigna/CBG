@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Split from "react-split"
@@ -29,7 +29,6 @@ import useChallenge from "@/hooks/useChallenge"
 import useCodeExecution from "@/hooks/useCodeExecution"
 import useLanguages from "@/hooks/useLanguages"
 
-// Types
 interface TestCase {
     id: string
     input: string
@@ -119,6 +118,8 @@ const ChallengePage = () => {
     const [likesCount, setLikesCount] = useState<number>(0)
     const [dislikesCount, setDislikesCount] = useState<number>(0)
     const [isLikeLoading, setIsLikeLoading] = useState(false)
+    const isStatsLoadingRef = useRef(false)
+    const statsFetchedForChallengeRef = useRef<string | null>(null)
 
     // Determine if challenge is solved (accepted submission exists or current submission accepted)
     const hasAcceptedSubmission = submissions.some((s) => s.status === "ACCEPTED")
@@ -136,10 +137,8 @@ const ChallengePage = () => {
                     setLikesCount(challenge._count?.likes || 0);
                     setDislikesCount(challenge.dislikes || 0);
                     
-                    // Fetch user-specific like status if authenticated
-                    if (session?.user?.id) {
-                        await fetchChallengeStats(challenge.id);
-                    }
+                    // Reset stats fetched flag when challenge changes
+                    statsFetchedForChallengeRef.current = null;
                 }
             } catch (error) {
                 console.error("Error fetching challenge:", error)
@@ -152,7 +151,52 @@ const ChallengePage = () => {
         if(challengeData) {
             fetchChallenge()
         }
-    }, [challengeData, slug, session?.user?.id])
+    }, [challengeData, slug])
+
+    // Fetch challenge stats (likes/dislikes and user status)
+    const fetchChallengeStats = useCallback(async (challengeId: string) => {
+        if (isStatsLoadingRef.current || statsFetchedForChallengeRef.current === challengeId) {
+            return; // Prevent multiple simultaneous requests or duplicate fetches
+        }
+        
+        isStatsLoadingRef.current = true;
+        try {
+            const token = localStorage.getItem('auth-token')
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            }
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`
+            }
+
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challengeId}/stats`, {
+                headers
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                if (data.success) {
+                    setLikesCount(data.likes)
+                    setDislikesCount(data.dislikes)
+                    setUserLikeStatus(data.userLikeStatus)
+                    statsFetchedForChallengeRef.current = challengeId; // Mark as fetched
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching challenge stats:", error)
+        } finally {
+            isStatsLoadingRef.current = false;
+        }
+    }, [])
+
+    // Separate effect for fetching user-specific stats when authenticated
+    useEffect(() => {
+        if (session?.user?.id && challenge?.id && 
+            !isStatsLoadingRef.current && 
+            statsFetchedForChallengeRef.current !== challenge.id) {
+            fetchChallengeStats(challenge.id);
+        }
+    }, [session?.user?.id, challenge?.id, fetchChallengeStats])
 
     // Fetch contest information if contest ID is present
     useEffect(() => {
@@ -461,34 +505,6 @@ int main() {
             setCode(getLanguageTemplate(selectedLanguage))
         }
     }, [selectedLanguage, code])
-
-    // Fetch challenge stats (likes/dislikes and user status)
-    const fetchChallengeStats = useCallback(async (challengeId: string) => {
-        try {
-            const token = localStorage.getItem('auth-token')
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json'
-            }
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`
-            }
-
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challengeId}/stats`, {
-                headers
-            })
-
-            if (response.ok) {
-                const data = await response.json()
-                if (data.success) {
-                    setLikesCount(data.likes)
-                    setDislikesCount(data.dislikes)
-                    setUserLikeStatus(data.userLikeStatus)
-                }
-            }
-        } catch (error) {
-            console.error("Error fetching challenge stats:", error)
-        }
-    }, [])
 
     // Handle like/dislike action
     const handleLikeToggle = async (isLike: boolean) => {
