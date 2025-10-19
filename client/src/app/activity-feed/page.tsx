@@ -74,7 +74,6 @@ const ActivityFeedPage = () => {
         problemsSolved: userProfile?.solved || 0,
         currentStreak: userProfile?.streakDays || 0,
         contestsParticipated: 0,
-        achievements: userProfile?.badges?.length || 0,
         averageRating: userProfile?.rank ? (2000 - userProfile.rank * 10) : 1200, // Calculate rating based on rank
     }
 
@@ -233,11 +232,6 @@ const ActivityFeedPage = () => {
             key: "CONTEST",
             label: "Contests", 
             count: statistics?.typeBreakdown?.CONTEST || 0,
-        },
-        {
-            key: "BADGE",
-            label: "Badges",
-            count: statistics?.typeBreakdown?.BADGE || 0,
         },
         {
             key: "DISCUSSION",
@@ -487,8 +481,6 @@ const ActivityFeedPage = () => {
                                 ? "Start solving challenges to see your challenge activities!"
                                 : activeFilter === "CONTEST"
                                 ? "Participate in contests to see your contest activities!"
-                                : activeFilter === "BADGE"
-                                ? "Earn badges to see your badge activities!"
                                 : "Start participating to see your activities!"
                             }
                         </p>

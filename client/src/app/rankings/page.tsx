@@ -143,7 +143,7 @@ export default function RankingsPage() {
                         </Avatar>
                         <h3 className="text-xl font-bold">{user.user.name || user.user.username}</h3>
                         <p className={theme === 'dark' ? "text-gray-400 mb-2" : "text-gray-500 mb-2"}>@{user.user.username}</p>
-                        <div className="flex gap-1 mb-4">
+                        {/* <div className="flex gap-1 mb-4">
                             {user.badges?.map((badge: { id: string; name: string; }) => (
                                 <Badge
                                     key={badge.id}
@@ -157,7 +157,7 @@ export default function RankingsPage() {
                                     {badge.name}
                                 </Badge>
                             ))}
-                        </div>
+                        </div> */}
                         <div className="grid grid-cols-2 gap-4 w-full">
                             <div className={`rounded-lg p-3 ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-50'}`}>
                                 <p className={theme === 'dark' ? "text-gray-400 text-sm" : "text-gray-500 text-sm"}>Points</p>

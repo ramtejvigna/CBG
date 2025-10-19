@@ -64,6 +64,53 @@ const formatDate = (dateString: string) => {
   });
 };
 
+// Helper function to format contest status
+const formatContestStatus = (status: string) => {
+  switch (status) {
+    case 'UPCOMING':
+      return 'Upcoming';
+    case 'REGISTRATION_OPEN':
+      return 'Registration Open';
+    case 'ONGOING':
+      return 'Ongoing';
+    case 'FINISHED':
+      return 'Finished';
+    default:
+      return status;
+  }
+};
+
+// Helper function to get contest status color
+const getContestStatusColor = (status: string) => {
+  switch (status) {
+    case 'UPCOMING':
+      return 'text-blue-500';
+    case 'REGISTRATION_OPEN':
+      return 'text-green-500';
+    case 'ONGOING':
+      return 'text-orange-500';
+    case 'FINISHED':
+      return 'text-gray-500';
+    default:
+      return 'text-gray-500';
+  }
+};
+
+// Helper function to format contest duration
+const formatContestDuration = (startDate: string, endDate: string) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const duration = end.getTime() - start.getTime();
+  const hours = Math.floor(duration / (1000 * 60 * 60));
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) {
+    return `${days}d ${hours % 24}h`;
+  } else {
+    return `${hours}h`;
+  }
+};
+
 const ProfilePage = () => {
   const { username } = useParams();
   const { theme } = useThemeStore();
@@ -74,7 +121,6 @@ const ProfilePage = () => {
     if (userData?.pointsBreakdown) {
       return userData.pointsBreakdown.challenges +
         userData.pointsBreakdown.contests +
-        userData.pointsBreakdown.badges +
         userData.pointsBreakdown.discussions;
     }
     return userData?.userProfile?.points || 0;
@@ -91,6 +137,10 @@ const ProfilePage = () => {
   const [activityLoading, setActivityLoading] = useState(false);
   const [hasMoreSubmissions, setHasMoreSubmissions] = useState(true);
   const [submissionsPage, setSubmissionsPage] = useState(1);
+  const [contests, setContests] = useState<any[]>([]);
+  const [contestsLoading, setContestsLoading] = useState(false);
+  const [hasMoreContests, setHasMoreContests] = useState(true);
+  const [contestsPage, setContestsPage] = useState(1);
 
   // Fetch user profile data
   useEffect(() => {
@@ -177,6 +227,37 @@ const ProfilePage = () => {
     }
   };
 
+  // Fetch user contests
+  const fetchContests = async (page: number = 1) => {
+    if (!username) return;
+
+    try {
+      setContestsLoading(true);
+
+      const token = localStorage.getItem('auth-token');
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}/contests?page=${page}&limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (page === 1) {
+          setContests(data.contests);
+        } else {
+          setContests(prev => [...prev, ...data.contests]);
+        }
+        setHasMoreContests(data.pagination.page < data.pagination.pages);
+      }
+    } catch (err) {
+      console.error('Failed to fetch contests:', err);
+    } finally {
+      setContestsLoading(false);
+    }
+  };
+
   // Load submissions when switching to submissions tab
   useEffect(() => {
     if (activeTab === 'submissions' && submissions.length === 0) {
@@ -191,11 +272,26 @@ const ProfilePage = () => {
     }
   }, [activeTab, username]);
 
+  // Load contests when switching to contests tab
+  useEffect(() => {
+    if (activeTab === 'contests' && contests.length === 0) {
+      fetchContests(1);
+    }
+  }, [activeTab, username]);
+
   const loadMoreSubmissions = () => {
     if (!submissionsLoading && hasMoreSubmissions) {
       const nextPage = submissionsPage + 1;
       setSubmissionsPage(nextPage);
       fetchSubmissions(nextPage);
+    }
+  };
+
+  const loadMoreContests = () => {
+    if (!contestsLoading && hasMoreContests) {
+      const nextPage = contestsPage + 1;
+      setContestsPage(nextPage);
+      fetchContests(nextPage);
     }
   };
 
@@ -315,10 +411,6 @@ const ProfilePage = () => {
               value: 'submissions',
             },
             {
-              label: 'Badges',
-              value: 'badges',
-            },
-            {
               label: 'Contests',
               value: 'contests',
             }].map((tab, i) => (
@@ -421,7 +513,6 @@ const ProfilePage = () => {
                   {[
                     { icon: <Code className="text-blue-400" />, label: "Challenges", value: userData?.pointsBreakdown?.challenges || 0 },
                     { icon: <Trophy className="text-purple-400" />, label: "Contests", value: userData?.pointsBreakdown?.contests || 0 },
-                    { icon: <Award className="text-green-400" />, label: "Badges", value: userData?.pointsBreakdown?.badges || 0 },
                     { icon: <MessageSquare className="text-yellow-400" />, label: "Discussions", value: userData?.pointsBreakdown?.discussions || 0 }
                   ].map((item, i) => (
                     <div key={i} className={`rounded-lg p-3 text-center ${isDark ? 'bg-gray-750' : 'bg-gray-100'}`}>
@@ -463,7 +554,7 @@ const ProfilePage = () => {
                 </div>
               </div>
 
-              <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
+              {/* <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-bold">Badges</h2>
                   <button
@@ -498,12 +589,12 @@ const ProfilePage = () => {
                     </p>
                   </div>
                 )}
-              </div>
+              </div> */}
             </div>
           </div>
         )}
 
-        {activeTab === 'badges' && (
+        {/* {activeTab === 'badges' && (
           <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
             <h2 className="text-xl font-bold mb-6">Badges & Achievements</h2>
 
@@ -542,7 +633,7 @@ const ProfilePage = () => {
               </div>
             )}
           </div>
-        )}
+        )} */}
 
         {activeTab === 'submissions' && (
           <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
@@ -637,21 +728,123 @@ const ProfilePage = () => {
           <div className={`rounded-xl p-6 border ${borderColor} ${cardBg}`}>
             <h2 className="text-xl font-bold mb-6">Contest History</h2>
 
-            <div className="py-12 flex flex-col items-center text-center">
-              <div className={`w-20 h-20 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mb-4`}>
-                <Trophy className="w-10 h-10 text-gray-500" />
+            {contestsLoading && contests.length === 0 ? (
+              <div className="flex justify-center py-8">
+                <Loader />
               </div>
-              <h3 className={`text-xl font-medium ${textColor}`}>No Contest Participation Yet</h3>
-              <p className={`${secondaryText} mt-3 max-w-md`}>
-                You haven't participated in any contests yet. Join upcoming contests to compete with other developers and earn ranking points.
-              </p>
-              <button
-                className="mt-6 px-5 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white font-medium transition-colors"
-                onClick={() => window.location.href = '/contests'}
-              >
-                View Upcoming Contests
-              </button>
-            </div>
+            ) : contests.length > 0 ? (
+              <div>
+                <div className="space-y-4">
+                  {contests.map((contestParticipation, index) => (
+                    <div 
+                      key={index} 
+                      className={`rounded-lg p-4 border ${borderColor} ${hoverBg} transition-colors cursor-pointer`}
+                      onClick={() => {
+                        const slug = contestParticipation.contest.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                        window.location.href = `/contests/${slug}`;
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className={`text-lg font-semibold ${textColor}`}>
+                              {contestParticipation.contest.title}
+                            </h3>
+                            <span className={`text-sm font-medium ${getContestStatusColor(contestParticipation.contest.status)}`}>
+                              {formatContestStatus(contestParticipation.contest.status)}
+                            </span>
+                          </div>
+                          
+                          {contestParticipation.contest.description && (
+                            <p className={`${secondaryText} text-sm mb-3 line-clamp-2`}>
+                              {contestParticipation.contest.description}
+                            </p>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-4 text-sm">
+                            <div className={`flex items-center gap-1 ${secondaryText}`}>
+                              <Calendar className="w-4 h-4" />
+                              <span>
+                                {formatDate(contestParticipation.contest.startsAt)} - {formatDate(contestParticipation.contest.endsAt)}
+                              </span>
+                            </div>
+                            
+                            <div className={`flex items-center gap-1 ${secondaryText}`}>
+                              <Clock className="w-4 h-4" />
+                              <span>{formatContestDuration(contestParticipation.contest.startsAt, contestParticipation.contest.endsAt)}</span>
+                            </div>
+
+                            <div className={`flex items-center gap-1 ${secondaryText}`}>
+                              <Star className="w-4 h-4 text-orange-500" />
+                              <span className="text-orange-500 font-medium">{contestParticipation.points || 0} pts earned</span>
+                            </div>
+
+                            {contestParticipation.rank && contestParticipation.rank > 0 && (
+                              <div className={`flex items-center gap-1 ${secondaryText}`}>
+                                <Trophy className="w-4 h-4 text-yellow-500" />
+                                <span className="text-yellow-500 font-medium">Rank #{contestParticipation.rank}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {contestParticipation.submissions && contestParticipation.submissions.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Code className="w-4 h-4 text-blue-500" />
+                                <span className={secondaryText}>
+                                  {contestParticipation.submissions.length} submission{contestParticipation.submissions.length !== 1 ? 's' : ''} made
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 ml-4">
+                          <div className={`text-right ${secondaryText}`}>
+                            <div className="text-xs">Joined</div>
+                            <div className="text-sm font-medium">{formatDate(contestParticipation.joinedAt)}</div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {contestsLoading && contests.length > 0 && (
+                  <div className="flex justify-center py-4">
+                    <Loader />
+                  </div>
+                )}
+
+                {hasMoreContests && !contestsLoading && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={loadMoreContests}
+                      className="px-6 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white font-medium transition-colors"
+                    >
+                      Load More Contests
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-12 flex flex-col items-center text-center">
+                <div className={`w-20 h-20 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center mb-4`}>
+                  <Trophy className="w-10 h-10 text-gray-500" />
+                </div>
+                <h3 className={`text-xl font-medium ${textColor}`}>No Contest Participation Yet</h3>
+                <p className={`${secondaryText} mt-3 max-w-md`}>
+                  You haven't participated in any contests yet. Join upcoming contests to compete with other developers and earn ranking points.
+                </p>
+                <button
+                  className="mt-6 px-5 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white font-medium transition-colors"
+                  onClick={() => window.location.href = '/contests'}
+                >
+                  View Upcoming Contests
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
