@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
-import { User, Book } from 'lucide-react';
+import { User, Book, Trophy } from 'lucide-react';
 import { useThemeStore } from '@/lib/store/themeStore';
+import { generateSlug } from '@/lib/challengeUtils';
 
 interface SearchResult {
     challenges: {
@@ -12,11 +13,20 @@ interface SearchResult {
             name: string;
         };
     }[];
+    contests: {
+        id: string;
+        title: string;
+        description: string;
+        status: string;
+        startsAt: string;
+        endsAt: string;
+    }[];
     users: {
         id: string;
         username: string;
         name: string;
         image: string | null;
+        hasImage?: boolean;
     }[];
 }
 
@@ -32,14 +42,17 @@ const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) 
     if (!results && !loading) return null;
 
     return (
-        <div className={`absolute top-full left-0 right-0 mt-2 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg overflow-hidden z-50`}>
+        <div className={`absolute top-full left-0 right-0 mt-2 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200`}>
             {loading ? (
                 <div className="p-4 text-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
+                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Searching...
+                    </p>
                 </div>
             ) : (
                 <>
-                    {results && (results.challenges.length > 0 || results.users.length > 0) ? (
+                    {results && (results.challenges.length > 0 || results.contests.length > 0 || results.users.length > 0) ? (
                         <div>
                             {results.challenges.length > 0 && (
                                 <div className="p-2">
@@ -49,7 +62,7 @@ const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) 
                                     {results.challenges.map((challenge) => (
                                         <Link
                                             key={challenge.id}
-                                            href={`/challenge/${challenge.id}`}
+                                            href={`/challenges/${generateSlug(challenge.title)}`}
                                             onClick={onResultClick}
                                             className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
                                         >
@@ -60,6 +73,32 @@ const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) 
                                                 </div>
                                                 <div className="text-xs text-gray-500">
                                                     {challenge.category.name} · {challenge.difficulty}
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+
+                            {results.contests.length > 0 && (
+                                <div className="p-2">
+                                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} px-3 py-1`}>
+                                        Contests
+                                    </div>
+                                    {results.contests.map((contest) => (
+                                        <Link
+                                            key={contest.id}
+                                            href={`/contests/${generateSlug(contest.title)}`}
+                                            onClick={onResultClick}
+                                            className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
+                                        >
+                                            <Trophy className="w-4 h-4 mr-2 text-orange-500" />
+                                            <div>
+                                                <div className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
+                                                    {contest.title}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    {contest.status} · {new Date(contest.startsAt).toLocaleDateString()}
                                                 </div>
                                             </div>
                                         </Link>
@@ -79,15 +118,7 @@ const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) 
                                             onClick={onResultClick}
                                             className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
                                         >
-                                            {user.image ? (
-                                                <img
-                                                    src={user.image}
-                                                    alt={user.username}
-                                                    className="w-6 h-6 rounded-full mr-2"
-                                                />
-                                            ) : (
-                                                <User className="w-4 h-4 mr-2 text-orange-500" />
-                                            )}
+                                            <User className="w-4 h-4 mr-2 text-orange-500" />
                                             <div>
                                                 <div className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
                                                     {user.name}

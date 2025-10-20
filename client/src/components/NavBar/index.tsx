@@ -19,11 +19,20 @@ interface SearchResult {
             name: string;
         };
     }>;
+    contests: Array<{
+        id: string;
+        title: string;
+        description: string;
+        status: string;
+        startsAt: string;
+        endsAt: string;
+    }>;
     users: Array<{
         id: string;
         username: string;
         name: string;
         image: string | null;
+        hasImage?: boolean;
     }>;
 }
 
@@ -36,6 +45,7 @@ const NavBar = () => {
     const [isSearching, setIsSearching] = useState(false);
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
     const searchContainerRef = useRef<HTMLDivElement | null>(null);
+    const searchInputRef = useRef<HTMLInputElement | null>(null);
 
     const { user, logout, loading } = useAuthStore();
 
@@ -48,12 +58,25 @@ const NavBar = () => {
         setIsSearching(true);
         try {
             const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-            if (!response.ok) throw new Error('Search failed');
+            if (!response.ok) {
+                throw new Error(`Search failed: ${response.status}`);
+            }
             const data = await response.json();
-            setSearchResults(data);
+            
+            // Ensure we have the expected structure
+            setSearchResults({
+                challenges: data.challenges || [],
+                contests: data.contests || [],
+                users: data.users || []
+            });
         } catch (error) {
             console.error('Search error:', error);
-            setSearchResults(null);
+            // Set empty results on error instead of null to show "No results found"
+            setSearchResults({
+                challenges: [],
+                contests: [],
+                users: []
+            });
         } finally {
             setIsSearching(false);
         }
@@ -74,7 +97,7 @@ const NavBar = () => {
         }, 300);
     };
 
-    // Click outside handler
+    // Click outside handler and keyboard shortcuts
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
@@ -83,11 +106,28 @@ const NavBar = () => {
             }
         };
 
+        const handleKeyDown = (event: KeyboardEvent) => {
+            // Ctrl/Cmd + K to focus search
+            if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+                event.preventDefault();
+                searchInputRef.current?.focus();
+                setSearchFocus(true);
+            }
+            // Escape to close search
+            if (event.key === 'Escape' && searchFocus) {
+                setSearchFocus(false);
+                setSearchResults(null);
+                searchInputRef.current?.blur();
+            }
+        };
+
         document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
         };
-    }, []);
+    }, [searchFocus]);
 
     const handleResultClick = () => {
         setSearchQuery('');
@@ -117,10 +157,11 @@ const NavBar = () => {
                 <div ref={searchContainerRef} className={`relative w-1/2 transition-all duration-300 ${searchFocus ? 'scale-100' : 'scale-95'}`}>
                     <div className="relative">
                         <input
+                            ref={searchInputRef}
                             type="text"
                             value={searchQuery}
                             onChange={handleSearchInputChange}
-                            placeholder="Search battles, challenges, warriors..."
+                            placeholder="Search challenges, contests, warriors... (Ctrl+K)"
                             className={`w-full border-2 rounded-lg py-2 pl-4 pr-10 ${theme === 'dark'? 'text-gray-300 bg-gray-800 border-gray-700 \
                                      placeholder-gray-500' : ''} focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 \
                                      transition-all duration-300`}
