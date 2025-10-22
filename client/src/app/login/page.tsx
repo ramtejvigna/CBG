@@ -137,7 +137,13 @@ export default function AuthForm() {
             }
 
             if (result?.ok) {
-                await login(formData.email, formData.password);
+                // Also update the custom auth store for compatibility
+                try {
+                    await login(formData.email, formData.password);
+                } catch (err) {
+                    // If custom login fails, it's okay as NextAuth session is established
+                    console.warn('Custom auth store update failed:', err);
+                }
 
                 // Navigation will be handled by the useEffect that watches for session changes
                 router.refresh(); // Refresh to ensure session is loaded
@@ -152,12 +158,20 @@ export default function AuthForm() {
 
     const handleSocialLogin = async (provider: 'google' | 'github') => {
         try {
-            await signIn(provider, { 
-                callbackUrl: '/'  // Redirect to home for existing users
+            const result = await signIn(provider, { 
+                redirect: false // Don't redirect automatically to handle errors
             });
+            
+            if (result?.error) {
+                console.error('Social login error:', result.error);
+                setError(`Failed to sign in with ${provider.charAt(0).toUpperCase() + provider.slice(1)}. Please try again.`);
+            } else if (result?.ok) {
+                // Success - NextAuth will handle the session
+                router.refresh();
+            }
         } catch (err) {
-            setError('Failed to initialize social login');
-            console.error(err);
+            setError(`Failed to initialize ${provider} login`);
+            console.error('Social login error:', err);
         }
     };
 

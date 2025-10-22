@@ -19,7 +19,18 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: '10mb' })); // Increased limit for image uploads
 app.use(express.urlencoded({ limit: '10mb', extended: true })); // Also handle form data
-app.use(cors());
+
+// Configure CORS properly
+app.use(cors({
+    origin: [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        process.env.FRONTEND_URL || 'http://localhost:3000'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.use((req, res, next) => {
     console.log(`${req.method} - ${req.url}`);

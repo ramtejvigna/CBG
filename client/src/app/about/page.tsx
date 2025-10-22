@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { ArrowRight, Code, Trophy, Users, BookOpen, Zap, Laptop, Target, Globe, Github, Twitter, Linkedin } from 'lucide-react';
+import { ArrowRight, Code, Trophy, Users, BookOpen, Laptop, Target, Globe, Github, Twitter, Linkedin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image'; // Import the Image component
 

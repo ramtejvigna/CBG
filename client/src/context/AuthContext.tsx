@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { useAuthStore, User } from '../lib/store/authStore';
 
 // Define auth context type
@@ -27,6 +27,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const router = useRouter();
     const pathname = usePathname();
+    const { data: session, status } = useSession();
     
     const { 
         user, 
@@ -39,38 +40,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setError
     } = useAuthStore();
 
-    // Check auth status on initial load
+    // Check auth status on initial load and sync with NextAuth
     useEffect(() => {
-        checkAuth();
-    }, []);
+        const handleAuth = async () => {
+            if (status === 'loading') return; // Still loading NextAuth
+
+            if (session?.user) {
+                // User is authenticated via NextAuth
+                // Update the auth store with session data for consistency
+                const { setUser } = useAuthStore.getState();
+                setUser({
+                    id: session.user.id,
+                    email: session.user.email || '',
+                    name: session.user.name || '',
+                    username: session.user.username || '',
+                    image: session.user.image || '',
+                    needsOnboarding: session.user.needsOnboarding
+                } as any);
+            } else {
+                // No NextAuth session, try custom auth check
+                await checkAuth();
+            }
+        };
+
+        handleAuth();
+    }, [session, status, checkAuth]);
 
     // Handle protected routes and redirects
     useEffect(() => {
-        if (!loading) {
-            const protectedRoutes = [
-                '/profile',
-                '/challenge',
-                '/certifications',
-                '/settings',
-                '/battles'
-            ];
+        // Wait for authentication to complete
+        if (status === 'loading' || loading) return;
 
-            if (!user && protectedRoutes.some(route => pathname?.startsWith(route))) {
-                router.push('/login');
-            }
+        const protectedRoutes = [
+            '/profile',
+            '/challenges',
+            '/contests',
+            '/certifications',
+            '/settings',
+            '/battles',
+            '/onboarding'
+        ];
 
-            if (user) {
-                const authRoutes = ['/login', '/signup'];
-                if (authRoutes.includes(pathname || '')) {
-                    if (user.role === "USER") {
-                        router.push('/');
-                    } else if (user.role === "ADMIN") {
-                        router.push('/admin');
-                    }
+        const isProtectedRoute = protectedRoutes.some(route => pathname?.startsWith(route));
+        const currentUser = session?.user || user;
+
+        if (!currentUser && isProtectedRoute) {
+            router.push('/login');
+        }
+
+        if (currentUser) {
+            const authRoutes = ['/login', '/signup'];
+            if (authRoutes.includes(pathname || '')) {
+                const needsOnboarding = 'needsOnboarding' in currentUser ? currentUser.needsOnboarding : false;
+                if (needsOnboarding) {
+                    router.push('/onboarding');
+                } else {
+                    router.push('/');
                 }
             }
         }
-    }, [user, loading, pathname, router]);
+    }, [session, user, loading, status, pathname, router]);
 
     const login = async (email: string, password: string) => {
         try {

@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import NavBar from "@/components/NavBar"
 import { useThemeStore } from "@/lib/store/themeStore"
 import { useAuthStore } from "@/lib/store"
 import useActivities from "@/hooks/useActivities"
 import { ActivityListSkeleton } from "@/components/ActivitySkeleton"
-import { Code, Trophy, Star, Clock, CheckCircle, XCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
+import { Code, Trophy, Star, Clock, CheckCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -68,15 +67,6 @@ const ActivityFeedPage = () => {
     // Get user profile data for stats
     const userProfile = user?.userProfile
     
-    // Fallback stats for when data is loading
-    const defaultStats = {
-        totalPoints: userProfile?.points || 0,
-        problemsSolved: userProfile?.solved || 0,
-        currentStreak: userProfile?.streakDays || 0,
-        contestsParticipated: 0,
-        averageRating: userProfile?.rank ? (2000 - userProfile.rank * 10) : 1200, // Calculate rating based on rank
-    }
-
     // Combine activity statistics with user profile data for comprehensive stats
     const stats = {
         // Total points from user profile (accumulated over time)

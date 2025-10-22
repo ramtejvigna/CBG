@@ -46,8 +46,7 @@ const ChallengesPage = () => {
         return "text-red-500"
     }
 
-    const calculateSuccessRate = (challenge: Challenge): number => {
-        // Mock calculation - you might want to add this field to your API response
+    const calculateSuccessRate = (): number => {
         return Math.floor(Math.random() * 40) + 60; // Random between 60-100
     }
 
@@ -255,10 +254,10 @@ const ChallengesPage = () => {
                                 </thead>
                                 <tbody>
                                     {filteredAndSortedChallenges.map((challenge, index) => {
-                                        const successRate = calculateSuccessRate(challenge);
+                                        const successRate = calculateSuccessRate();
                                         return (
                                             <tr
-                                                key={challenge.id}
+                                                key={index}
                                                 className={`border-t transition-colors duration-200 py-4 ${theme === "dark"
                                                     ? "border-gray-700 hover:bg-gray-700/50"
                                                     : "border-gray-200 hover:bg-gray-50"

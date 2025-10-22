@@ -185,17 +185,26 @@ export const googleAuth = async (req: Request, res: Response) => {
     try {
         const { email, name, image, googleId } = req.body;
 
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required for Google authentication'
+            });
+        }
+
         // Check if user exists
         let user = await prisma.user.findUnique({
             where: { email },
-            include: { userProfile: true }
+            include: { userProfile: true, accounts: true }
         });
 
+        let needsOnboarding = false;
+
         if (!user) {
-            // Generate a unique username based on the name
-            const baseUsername = name.toLowerCase().replace(/\s+/g, '');
+            // Generate a temporary username that indicates onboarding is needed
+            const baseUsername = name ? name.toLowerCase().replace(/\s+/g, '') : 'user';
             const randomSuffix = randomBytes(4).toString('hex');
-            const username = `${baseUsername}${randomSuffix}`;
+            const tempUsername = `temp_${baseUsername}_${randomSuffix}`;
 
             // Create new user
             user = await prisma.user.create({
@@ -203,15 +212,8 @@ export const googleAuth = async (req: Request, res: Response) => {
                     email,
                     name,
                     image,
-                    username,
+                    username: tempUsername, // Temporary username
                     emailVerified: new Date(),
-                    accounts: {
-                        create: {
-                            type: 'oauth',
-                            provider: 'google',
-                            providerAccountId: googleId,
-                        }
-                    },
                     userProfile: {
                         create: {
                             bio: "No bio provided",
@@ -223,31 +225,30 @@ export const googleAuth = async (req: Request, res: Response) => {
                         }
                     }
                 },
-                include: { userProfile: true }
+                include: { userProfile: true, accounts: true }
             });
 
-            // For new Google users, redirect to onboarding to complete profile
-            // Remove large image data from response to reduce payload size
-            const { image: _, ...userWithoutImage } = user;
-            
-            res.status(201).json({
-                success: true,
-                user: {
-                    ...userWithoutImage,
-                    hasImage: !!user.image
-                },
-                needsOnboarding: true,
-                message: 'Please complete your profile setup'
+            // Create account record separately to avoid conflicts with NextAuth adapter
+            await prisma.account.create({
+                data: {
+                    userId: user.id,
+                    type: 'oauth',
+                    provider: 'google',
+                    providerAccountId: googleId,
+                }
             });
+
+            needsOnboarding = true;
         } else {
             // Update existing user
-            await prisma.user.update({
+            user = await prisma.user.update({
                 where: { id: user.id },
                 data: {
                     name,
                     image,
                     emailVerified: new Date(),
-                }
+                },
+                include: { userProfile: true, accounts: true }
             });
 
             // Ensure account connection exists
@@ -269,21 +270,32 @@ export const googleAuth = async (req: Request, res: Response) => {
                 });
             }
 
-            // Remove large image data from response to reduce payload size
-            const { image: _, ...userWithoutImage } = user;
-
-            res.status(200).json({
-                success: true,
-                user: {
-                    ...userWithoutImage,
-                    hasImage: !!user.image
-                },
-                needsOnboarding: false
-            });
+            // Check if user needs onboarding (temporary username or incomplete profile)
+            needsOnboarding = user.username.startsWith('temp_') || !user.username || user.username.length < 3;
         }
+
+        // Remove sensitive data from response
+        const { password, ...userWithoutPassword } = user;
+        // Remove large image data from response to reduce payload size
+        const { image: userImage, ...userWithoutImage } = userWithoutPassword;
+
+        res.status(user ? 200 : 201).json({
+            success: true,
+            user: {
+                ...userWithoutImage,
+                hasImage: !!user.image
+            },
+            needsOnboarding,
+            message: needsOnboarding ? 'Please complete your profile setup' : 'Authentication successful'
+        });
+
     } catch (error) {
         console.error('Google auth error:', error);
-        res.status(500).json({ success: false, error: 'Internal server error' });
+        res.status(500).json({ 
+            success: false, 
+            error: 'Internal server error',
+            message: 'Failed to process Google authentication'
+        });
     }
 };
 

@@ -1,6 +1,10 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 declare module "next-auth" {
   interface Session {
@@ -25,6 +29,7 @@ declare module "next-auth" {
 }
 
 const handler = NextAuth({
+  adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -77,11 +82,18 @@ const handler = NextAuth({
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: "database",
   },
+  debug: process.env.NODE_ENV === 'development',
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
+        console.log('NextAuth signIn callback:', { 
+          provider: account?.provider, 
+          userId: user.id, 
+          userEmail: user.email 
+        });
+
         // Skip backend call for credentials provider as it's already authenticated
         if (account?.provider === "credentials") {
           return true;
@@ -91,8 +103,10 @@ const handler = NextAuth({
         if (account?.provider === "google") {
           if (!process.env.NEXT_PUBLIC_API_URL) {
             console.error('NEXT_PUBLIC_API_URL is not defined');
-            throw new Error('Server configuration error');
+            return false;
           }
+
+          console.log('Making backend call for Google OAuth...');
 
           // Make API call to your backend to store/update user data
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
@@ -109,15 +123,19 @@ const handler = NextAuth({
           });
 
           const data = await response.json();
+          console.log('Backend response:', { success: data.success, needsOnboarding: data.needsOnboarding });
 
           if (!response.ok) {
-            console.error('Server response:', data);
-            throw new Error(data.message || 'Failed to store user data');
+            console.error('Backend error response:', data);
+            return false;
           }
 
-          // If onboarding is needed, we still return true but store this info in the token
-          if (data.needsOnboarding) {
-            user.needsOnboarding = true;
+          // Update user object with data from backend
+          if (data.success && data.user) {
+            user.id = data.user.id;
+            user.username = data.user.username;
+            user.needsOnboarding = data.needsOnboarding;
+            console.log('Updated user object:', { id: user.id, username: user.username, needsOnboarding: user.needsOnboarding });
           }
 
           return true;
@@ -125,25 +143,32 @@ const handler = NextAuth({
 
         return true;
       } catch (error) {
-        console.error('Error storing user data:', error);
+        console.error('NextAuth signIn callback error:', error);
         return false;
       }
     },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.username = user.username;
-        token.needsOnboarding = user.needsOnboarding;
+    async session({ session, user }) {
+      // With database sessions, we use the user from database
+      try {
+        if (session?.user && user) {
+          session.user.id = user.id;
+          session.user.username = user.username;
+          
+          // Check if user needs onboarding by verifying username format
+          const needsOnboarding = !user.username || user.username.includes('temp_') || user.username.length < 3;
+          session.user.needsOnboarding = needsOnboarding;
+
+          console.log('Session callback:', { 
+            userId: session.user.id, 
+            username: session.user.username, 
+            needsOnboarding 
+          });
+        }
+        return session;
+      } catch (error) {
+        console.error('NextAuth session callback error:', error);
+        return session;
       }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session?.user && token) {
-        session.user.id = token.id as string;
-        session.user.username = token.username as string;
-        session.user.needsOnboarding = token.needsOnboarding as boolean;
-      }
-      return session;
     },
     async redirect({ url, baseUrl }) {
       // If the user needs onboarding, redirect them to the onboarding page
@@ -151,6 +176,11 @@ const handler = NextAuth({
         const urlObj = new URL(url);
         if (urlObj.searchParams.get('error') === 'AccessDenied') {
           return `${baseUrl}/login?error=AccessDenied`;
+        }
+        
+        // Check if user needs onboarding and redirect appropriately
+        if (urlObj.searchParams.get('needsOnboarding') === 'true') {
+          return `${baseUrl}/onboarding`;
         }
       }
       return url.startsWith(baseUrl) ? url : baseUrl;
