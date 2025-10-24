@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
     Eye,
     EyeOff,
-    Github,
     Mail,
     Lock,
     UserPlus,

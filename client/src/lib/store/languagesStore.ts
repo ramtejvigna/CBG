@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getSessionToken } from '../auth'
 
 export interface Language {
   id: string;
@@ -35,7 +36,7 @@ export const useLanguagesStore = create<LanguagesState>()(
       fetchLanguages: async () => {
         const { lastFetched, languages } = get()
         const currentTime = Date.now()
-        const token = localStorage.getItem('auth-token');
+        const token = getSessionToken();
         
         // Only refetch if data is stale or empty
         if (languages.length === 0 || currentTime - lastFetched > REFETCH_THRESHOLD) {

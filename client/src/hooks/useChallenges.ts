@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useChallengesStore, Challenge, Category } from '../lib/store/challengesStore';
 
 interface UseChallengesOptions {
@@ -27,16 +27,26 @@ export const useChallenges = (options: UseChallengesOptions = {}): UseChallenges
         refetchChallenges
     } = useChallengesStore();
 
+    const stableOptions = useMemo(() => options, [
+        options.category,
+        options.difficulty,
+        options.page,
+        options.limit
+    ])
+
     useEffect(() => {
         const loadData = async () => {
             await Promise.all([
-                fetchChallenges(options),
-                fetchCategories()
+                fetchChallenges(stableOptions)
             ]);
         };
         
         loadData();
-    }, [options.category, options.difficulty, options.page, options.limit, fetchChallenges, fetchCategories]);
+    }, [stableOptions, fetchChallenges]);
+
+    useEffect(() => {
+        fetchCategories();
+    }, [fetchCategories])
 
     return {
         challenges,

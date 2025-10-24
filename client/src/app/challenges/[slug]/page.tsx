@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react"
 import Split from "react-split"
 import { toast } from "react-hot-toast"
 import { useTheme } from "@/context/ThemeContext"
+import { createAuthHeaders } from '@/lib/auth'
 import {
     ChevronLeft,
     Share,
@@ -161,12 +162,9 @@ const ChallengePage = () => {
         
         isStatsLoadingRef.current = true;
         try {
-            const token = localStorage.getItem('auth-token')
             const headers: Record<string, string> = {
-                'Content-Type': 'application/json'
-            }
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`
+                'Content-Type': 'application/json',
+                ...createAuthHeaders()
             }
 
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challengeId}/stats`, {
@@ -204,12 +202,9 @@ const ChallengePage = () => {
             if (!contestId) return
             
             try {
-                const token = localStorage.getItem('auth-token')
                 const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                }
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`
+                    'Content-Type': 'application/json',
+                    ...createAuthHeaders()
                 }
 
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests/${contestId}`, {
@@ -518,12 +513,11 @@ int main() {
 
         setIsLikeLoading(true)
         try {
-            const token = localStorage.getItem('auth-token')
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/challenges/${challenge.id}/like`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    ...createAuthHeaders()
                 },
                 body: JSON.stringify({ isLike })
             })
@@ -550,13 +544,6 @@ int main() {
         }
     }
 
-    // Fetch submissions when user session is available
-    useEffect(() => {
-        if (session?.user?.id && challenge) {
-            fetchSubmissions()
-        }
-    }, [session, challenge])
-
     if (loading || status === "loading") {
         return (
             <div
@@ -580,7 +567,7 @@ int main() {
                         Challenge Not Found
                     </h1>
                     <p className={`mb-8 transition-colors duration-200 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                        The challenge you're looking for doesn't exist or has been removed.
+                        The challenge you&apos;re looking for doesn&apos;t exist or has been removed.
                     </p>
                     <Link
                         href="/challenges"
@@ -1128,7 +1115,7 @@ int main() {
                                                     .filter((tc) => !tc.isHidden)
                                                     .slice(0, 1)
                                                     .map((testCase, index) => (
-                                                        <div key={testCase.id} className="space-y-3">
+                                                        <div key={index} className="space-y-3">
                                                             <div>
                                                                 <label
                                                                     className={`text-xs font-medium transition-colors duration-200 ${isDark ? "text-gray-400" : "text-gray-600"

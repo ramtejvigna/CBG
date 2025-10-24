@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface UseUserImageReturn {
   image: string | null;
@@ -12,14 +12,14 @@ export const useUserImage = (userId?: string): UseUserImageReturn => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchImage = async () => {
+  const fetchImage = useCallback(async () => {
     if (!userId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/users/${userId}/image`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/${userId}/image`);
       
       if (response.status === 404) {
         // User has no image
@@ -39,11 +39,11 @@ export const useUserImage = (userId?: string): UseUserImageReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     fetchImage();
-  }, [userId]);
+  }, [fetchImage]);
 
   return {
     image,

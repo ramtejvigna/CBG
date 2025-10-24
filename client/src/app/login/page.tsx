@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { 
   Eye, 
   EyeOff, 
-  Github, 
   Mail, 
   Lock,  
   LogIn, 
@@ -36,7 +35,7 @@ export default function AuthForm() {
     const [codePosition, setCodePosition] = useState(0);
     const [isClient, setIsClient] = useState(false);
 
-    const { loading, error, user, setError, login, checkAuth } = useAuthStore();
+    const { user, loading, error, setError, login, checkAuth } = useAuthStore();
 
     // Use useEffect to set isClient to true after component mounts
     useEffect(() => {
@@ -46,13 +45,16 @@ export default function AuthForm() {
     // Check if user is already authenticated and redirect
     useEffect(() => {
         const handleAuth = async () => {
-            if (status === 'loading') return; // Still loading
+            if (loading) return; // Still loading
 
-            const auth = await checkAuth();
+            await checkAuth();
             
-            if (session?.user && auth) {
-                // User is authenticated via NextAuth
-                if (session.user.needsOnboarding) {
+            if (session?.user || user) {
+                // User is authenticated
+                const currentUser = session?.user || user;
+                const needsOnboarding = (currentUser && 'needsOnboarding' in currentUser ? currentUser.needsOnboarding : false) || currentUser?.username?.startsWith('temp_');
+                
+                if (needsOnboarding) {
                     router.push('/onboarding');
                 } else {
                     router.push('/');
@@ -61,7 +63,7 @@ export default function AuthForm() {
         };
 
         handleAuth();
-    }, [session, status, router, checkAuth]);
+    }, [session, user, loading, router, checkAuth]);
 
     // Animation for background code typing effect - only run on client
     useEffect(() => {
@@ -124,32 +126,12 @@ export default function AuthForm() {
         setIsSubmitting(true);
 
         try {
-            // Use NextAuth credentials provider for session management
-            const result = await signIn('credentials', {
-                email: formData.email,
-                password: formData.password,
-                redirect: false // Don't redirect automatically
-            });
-
-            if (result?.error) {
-                setError('Invalid email or password');
-                return;
-            }
-
-            if (result?.ok) {
-                // Also update the custom auth store for compatibility
-                try {
-                    await login(formData.email, formData.password);
-                } catch (err) {
-                    // If custom login fails, it's okay as NextAuth session is established
-                    console.warn('Custom auth store update failed:', err);
-                }
-
-                // Navigation will be handled by the useEffect that watches for session changes
-                router.refresh(); // Refresh to ensure session is loaded
-            }
+            // Use our session-based auth store for login
+            await login(formData.email, formData.password);
+            
+            router.push('/');
         } catch (err) {
-            setError('Login failed. Please try again.');
+            setError('Login failed. Please check your credentials and try again.');
             console.error('Login failed:', err);
         } finally {
             setIsSubmitting(false);
@@ -159,14 +141,14 @@ export default function AuthForm() {
     const handleSocialLogin = async (provider: 'google' | 'github') => {
         try {
             const result = await signIn(provider, { 
-                redirect: false // Don't redirect automatically to handle errors
+                redirect: true
             });
             
             if (result?.error) {
                 console.error('Social login error:', result.error);
                 setError(`Failed to sign in with ${provider.charAt(0).toUpperCase() + provider.slice(1)}. Please try again.`);
             } else if (result?.ok) {
-                // Success - NextAuth will handle the session
+                console.log(result);
                 router.refresh();
             }
         } catch (err) {

@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma.js';
 import { sendPasswordResetEmail } from '../lib/emailService.js';
 
@@ -73,12 +72,18 @@ export const signup = async (req: Request, res: Response) => {
         // Remove large image data from signup response to reduce payload size
         const { image, ...userWithoutImage } = userWithoutPassword;
 
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            process.env.JWT_SECRET || 'fallback-secret',
-            { expiresIn: '7d' }
-        );
+        // Create session
+        const sessionToken = randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+
+        await prisma.session.create({
+            data: {
+                sessionToken,
+                userId: user.id,
+                expires: expiresAt,
+            }
+        });
 
         res.status(201).json({
             success: true,
@@ -88,7 +93,7 @@ export const signup = async (req: Request, res: Response) => {
                 // Only include a flag to indicate if user has an image
                 hasImage: !!user.image
             },
-            token,
+            sessionToken,
             needsOnboarding: true
         });
 
@@ -143,23 +148,17 @@ export const login = async (req: Request, res: Response) => {
         // Remove large image data from login response to reduce payload size
         const { image, ...userWithoutImage } = userWithoutPassword;
 
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user.id, email: user.email },
-            process.env.JWT_SECRET || "fallback-secret",
-            { expiresIn: "7d" }
-        );
-
-        // Session expiry
+        // Create session
+        const sessionToken = randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
         await prisma.session.create({
             data: {
-                sessionToken: token,
+                sessionToken,
                 userId: user.id,
                 expires: expiresAt,
-            },
+            }
         });
 
         res.status(200).json({
@@ -170,7 +169,7 @@ export const login = async (req: Request, res: Response) => {
                 // Only include a flag to indicate if user has an image
                 hasImage: !!user.image
             },
-            token,
+            sessionToken,
         });
     } catch (error) {
         console.error("Login error:", error);
@@ -274,6 +273,19 @@ export const googleAuth = async (req: Request, res: Response) => {
             needsOnboarding = user.username.startsWith('temp_') || !user.username || user.username.length < 3;
         }
 
+        // Create session for Google auth
+        const sessionToken = randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+
+        await prisma.session.create({
+            data: {
+                sessionToken,
+                userId: user.id,
+                expires: expiresAt,
+            }
+        });
+
         // Remove sensitive data from response
         const { password, ...userWithoutPassword } = user;
         // Remove large image data from response to reduce payload size
@@ -285,6 +297,7 @@ export const googleAuth = async (req: Request, res: Response) => {
                 ...userWithoutImage,
                 hasImage: !!user.image
             },
+            sessionToken,
             needsOnboarding,
             message: needsOnboarding ? 'Please complete your profile setup' : 'Authentication successful'
         });
@@ -381,9 +394,14 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
     try {
-        // In a stateless JWT setup, logout is typically handled client-side
-        // by removing the token from storage. Server-side, we could maintain
-        // a blacklist of tokens, but that's beyond basic implementation.
+        const sessionToken = req.headers.authorization?.split(' ')[1];
+        
+        if (sessionToken) {
+            // Delete the session from database
+            await prisma.session.deleteMany({
+                where: { sessionToken }
+            });
+        }
 
         res.status(200).json({
             success: true,

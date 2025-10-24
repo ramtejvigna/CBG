@@ -37,7 +37,7 @@ export function ensureStorageMigration(storeName: string, forceReset = false): v
             localStorage.removeItem(storageKey);
             console.log(`Storage for ${storeName} was invalid and has been reset.`);
           }
-        } catch (parseError) {
+        } catch {
           // If we can't parse the data, it's corrupt, so reset it
           localStorage.removeItem(storageKey);
           console.log(`Storage for ${storeName} was corrupt and has been reset.`);

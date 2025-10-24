@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import React, { useEffect, useRef } from "react"
-import { Code, Award, MessageSquare, BarChart2, Terminal, Zap, Star, Activity } from "lucide-react"
+import { Code, Award, Star, Activity } from "lucide-react"
 import { useChallengesStore } from "@/lib/store/challengesStore"
 import { useThemeStore } from "@/lib/store/themeStore"
 

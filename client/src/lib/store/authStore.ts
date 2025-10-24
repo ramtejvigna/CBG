@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useProfileStore } from './profileStore'; // Import the profile store
+import { getSessionToken, setSessionToken, removeSessionToken, createAuthHeaders } from '../auth';
 
 export interface User {
     id: string;
@@ -67,11 +68,11 @@ export const useAuthStore = create<AuthState>()(
 
             checkAuth: async () => {
                 try {
-                    const token = localStorage.getItem('auth-token');
-                    if (token) {
+                    const sessionToken = getSessionToken();
+                    if (sessionToken) {
                         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/me`, {
                             headers: {
-                                'Authorization': `Bearer ${token}`,
+                                ...createAuthHeaders(),
                                 'Content-Type': 'application/json'
                             }
                         });
@@ -102,12 +103,12 @@ export const useAuthStore = create<AuthState>()(
                                 profileStore.setLoading(false);
                             }
                         } else {
-                            localStorage.removeItem('auth-token');
+                            removeSessionToken();
                         }
                     }
                 } catch (err) {
                     console.error('Auth check failed:', err);
-                    localStorage.removeItem('auth-token');
+                    removeSessionToken();
                 } finally {
                     set({ loading: false });
                 }
@@ -128,9 +129,8 @@ export const useAuthStore = create<AuthState>()(
                         throw new Error(data.message || 'Login failed');
                     }
                     
-                    if (data.success && data.token) {
-                        console.log(data.token)
-                        localStorage.setItem('auth-token', data.token);
+                    if (data.success && data.sessionToken) {
+                        setSessionToken(data.sessionToken);
                         set({ user: data.user });
                         
                         // Also update the profile store with the user data
@@ -139,21 +139,10 @@ export const useAuthStore = create<AuthState>()(
                             // We're setting the user data in the profile store
                             profileStore.setUserData({
                                 ...data.user,
-                                userProfile: data.user.userProfile || {
-                                    id: '',
-                                    bio: '',
-                                    level: 1,
-                                    points: 0,
-                                    solved: 0,
-                                    streakDays: 0,
-                                    preferredLanguage: 'javascript',
-                                    badges: [],
-                                    languages: []
-                                },
+                                userProfile: data.user.userProfile,
                                 createdAt: new Date().toISOString(),
                                 role: data.user.role || 'USER'
                             });
-                            // Update the lastFetchedId directly (no setter for it)
                             profileStore.setLoading(false);
                         }
                     } else {
@@ -190,8 +179,8 @@ export const useAuthStore = create<AuthState>()(
                         throw new Error(data.message || 'Signup failed');
                     }
 
-                    if (data.success && data.token) {
-                        localStorage.setItem('auth-token', data.token);
+                    if (data.success && data.sessionToken) {
+                        setSessionToken(data.sessionToken);
                         set({ user: data.user });
                     } else {
                         throw new Error('Invalid response from server');
@@ -207,17 +196,17 @@ export const useAuthStore = create<AuthState>()(
             logout: async () => {
                 set({ loading: true });
                 try {
-                    const token = localStorage.getItem('auth-token');
-                    if (token) {
+                    const sessionToken = getSessionToken();
+                    if (sessionToken) {
                         await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
                             method: 'POST',
                             headers: {
-                                'Authorization': `Bearer ${token}`,
+                                ...createAuthHeaders(),
                                 'Content-Type': 'application/json'
                             }
                         });
                     }
-                    localStorage.removeItem('auth-token');
+                    removeSessionToken();
                     set({ user: null });
                 } catch (err) {
                     console.error('Logout failed:', err);

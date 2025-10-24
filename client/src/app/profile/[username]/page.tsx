@@ -1,18 +1,101 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { useThemeStore } from '../../../lib/store/themeStore';
 import Loader from '../../../components/Loader';
+import { createAuthHeaders } from '@/lib/auth';
+
+// User interfaces
+interface UserProfile {
+  phone?: string;
+  bio?: string;
+  points?: number;
+  level?: number;
+  rank?: number;
+  solved?: number;
+  streakDays?: number;
+  preferredLanguage?: string;
+}
+
+interface UserData {
+  id: string;
+  name?: string;
+  username: string;
+  email?: string;
+  image?: string;
+  userProfile?: UserProfile;
+  pointsBreakdown?: {
+    challenges: number;
+    contests: number;
+    discussions: number;
+  };
+  stats?: {
+    acceptedSubmissions: number;
+  };
+}
+
+interface Submission {
+  id: string;
+  status: string;
+  runtime: number | null;
+  memory: number | null;
+  score: number;
+  createdAt: string;
+  language: {
+    name: string;
+  };
+  challenge: {
+    title: string;
+    slug: string;
+    difficulty?: string;
+  };
+}
+
+interface RecentActivity {
+  id: string;
+  type: string;
+  name: string;
+  result: string;
+  points: number;
+  time: string;
+  timestamp: string;
+  challengeName?: string;
+  contestName?: string;
+}
+
+interface Contest {
+  id: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+  maxParticipants: number;
+  _count: {
+    participants: number;
+  };
+}
+
+interface ContestParticipation {
+  id: string;
+  position: number | null;
+  score: number;
+  points?: number;
+  rank?: number;
+  submissions?: Submission[];
+  joinedAt?: string;
+  contest: Contest;
+}
 import {
   Trophy,
   Code,
-  Zap,
   Star,
   Calendar,
   Award,
   ChevronRight,
-  Github,
   CheckCircle,
   Coffee,
   Settings,
@@ -117,7 +200,7 @@ const ProfilePage = () => {
   const isDark = theme === 'dark';
 
   // Utility function to calculate total points
-  const calculateTotalPoints = (userData: any) => {
+  const calculateTotalPoints = (userData: UserData | null) => {
     if (userData?.pointsBreakdown) {
       return userData.pointsBreakdown.challenges +
         userData.pointsBreakdown.contests +
@@ -127,17 +210,17 @@ const ProfilePage = () => {
   };
 
   // State
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [hasMoreSubmissions, setHasMoreSubmissions] = useState(true);
   const [submissionsPage, setSubmissionsPage] = useState(1);
-  const [contests, setContests] = useState<any[]>([]);
+  const [contests, setContests] = useState<ContestParticipation[]>([]);
   const [contestsLoading, setContestsLoading] = useState(false);
   const [hasMoreContests, setHasMoreContests] = useState(true);
   const [contestsPage, setContestsPage] = useState(1);
@@ -151,7 +234,7 @@ const ProfilePage = () => {
         setLoading(true);
         setError(null);
 
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}`);
 
         if (!response.ok) {
           throw new Error('User not found');
@@ -171,18 +254,14 @@ const ProfilePage = () => {
   }, [username]);
 
   // Fetch user submissions
-  const fetchSubmissions = async (page: number = 1) => {
+  const fetchSubmissions = useCallback(async (page: number = 1) => {
     if (!username) return;
 
     try {
       setSubmissionsLoading(true);
 
-      const token = localStorage.getItem('auth-token')
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}/submissions?page=${page}&limit=20`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}/submissions?page=${page}&limit=20`, {
+        headers: createAuthHeaders()
       });
 
       if (response.ok) {
@@ -199,21 +278,17 @@ const ProfilePage = () => {
     } finally {
       setSubmissionsLoading(false);
     }
-  };
+  }, [username]);
 
   // Fetch recent activity
-  const fetchRecentActivity = async () => {
+  const fetchRecentActivity = useCallback(async () => {
     if (!username) return;
 
     try {
       setActivityLoading(true);
 
-      const token = localStorage.getItem('auth-token');
-
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}/activity?limit=5`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: createAuthHeaders()
       });
 
       if (response.ok) {
@@ -225,21 +300,17 @@ const ProfilePage = () => {
     } finally {
       setActivityLoading(false);
     }
-  };
+  }, [username]);
 
   // Fetch user contests
-  const fetchContests = async (page: number = 1) => {
+  const fetchContests = useCallback(async (page: number = 1) => {
     if (!username) return;
 
     try {
       setContestsLoading(true);
 
-      const token = localStorage.getItem('auth-token');
-
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/profile/${username}/contests?page=${page}&limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: createAuthHeaders()
       });
 
       if (response.ok) {
@@ -256,28 +327,28 @@ const ProfilePage = () => {
     } finally {
       setContestsLoading(false);
     }
-  };
+  }, [username]);
 
   // Load submissions when switching to submissions tab
   useEffect(() => {
     if (activeTab === 'submissions' && submissions.length === 0) {
       fetchSubmissions(1);
     }
-  }, [activeTab, username]);
+  }, [activeTab, fetchSubmissions, submissions.length]);
 
   // Load activity when switching to overview tab
   useEffect(() => {
     if (activeTab === 'overview' && recentActivity.length === 0) {
       fetchRecentActivity();
     }
-  }, [activeTab, username]);
+  }, [activeTab, fetchRecentActivity, recentActivity.length]);
 
   // Load contests when switching to contests tab
   useEffect(() => {
     if (activeTab === 'contests' && contests.length === 0) {
       fetchContests(1);
     }
-  }, [activeTab, username]);
+  }, [activeTab, fetchContests, contests.length]);
 
   const loadMoreSubmissions = () => {
     if (!submissionsLoading && hasMoreSubmissions) {
@@ -295,19 +366,16 @@ const ProfilePage = () => {
     }
   };
 
-  const handleGithubConnectionClick = () => {
-    // Implement GitHub connection logic
-    console.log('GitHub connection clicked');
-  };
+
 
   // Check if user has preferred languages
-  const hasLanguages = userData?.userProfile?.languages && userData.userProfile.languages.length > 0;
-  const allLanguages: Array<{
-    id?: string;
-    name: string;
-    percentage?: number;
-    isPreferred?: boolean;
-  }> = userData?.userProfile?.languages || [];
+  // const hasLanguages = userData?.userProfile?.languages && userData.userProfile.languages.length > 0;
+  // const allLanguages: Array<{
+  //   id?: string;
+  //   name: string;
+  //   percentage?: number;
+  //   isPreferred?: boolean;
+  // }> = userData?.userProfile?.languages || [];
 
   if (loading) {
     return (
@@ -370,10 +438,10 @@ const ProfilePage = () => {
             {/* Stats */}
             <div className="flex flex-wrap gap-4 md:gap-8 md:ml-auto">
               {[
-                { icon: <Trophy className="w-4 h-4 text-yellow-500" />, label: "Global Rank", value: `${userData.userProfile?.rank || '-'}` },
-                { icon: <Star className="w-4 h-4 text-blue-500" />, label: "Level", value: userData.userProfile?.level || 0 },
-                { icon: <CheckCircle className="w-4 h-4 text-green-500" />, label: "Problems", value: userData.stats?.acceptedSubmissions || userData.userProfile?.solved || 0 },
-                { icon: <Coffee className="w-4 h-4 text-orange-500" />, label: "Streak", value: `${userData.userProfile?.streakDays || 0} days` }
+                { icon: <Trophy className="w-4 h-4 text-yellow-500" />, label: "Global Rank", value: `${userData?.userProfile?.rank || '-'}` },
+                { icon: <Star className="w-4 h-4 text-blue-500" />, label: "Level", value: userData?.userProfile?.level || 0 },
+                { icon: <CheckCircle className="w-4 h-4 text-green-500" />, label: "Problems", value: userData?.stats?.acceptedSubmissions || userData?.userProfile?.solved || 0 },
+                { icon: <Coffee className="w-4 h-4 text-orange-500" />, label: "Streak", value: `${userData?.userProfile?.streakDays || 0} days` }
               ].map((stat, i) => (
                 <div key={i} className={`${cardBg} rounded-lg p-3 min-w-[100px] border ${borderColor}`}>
                   <div className={`text-sm ${secondaryText}`}>{stat.label}</div>
@@ -527,7 +595,7 @@ const ProfilePage = () => {
                 <div className="mt-6">
                   {(() => {
                     const totalPoints = calculateTotalPoints(userData);
-                    const currentLevel = userData.userProfile?.level || 0;
+                    const currentLevel = userData?.userProfile?.level || 0;
                     const nextLevelThreshold = (currentLevel + 1) * 1000;
                     const progressInCurrentLevel = totalPoints % 1000;
                     const progressPercentage = Math.min(100, (progressInCurrentLevel / 1000) * 100);
@@ -711,7 +779,7 @@ const ProfilePage = () => {
                 </div>
                 <h3 className={`text-xl font-medium ${textColor}`}>No Submissions Yet</h3>
                 <p className={`${secondaryText} mt-3 max-w-md`}>
-                  You haven't submitted any solutions yet. Start solving coding challenges to build your submission history.
+                  You haven&apos;t submitted any solutions yet. Start solving coding challenges to build your submission history.
                 </p>
                 <button
                   className="mt-6 px-5 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white font-medium transition-colors"
@@ -802,7 +870,7 @@ const ProfilePage = () => {
                         <div className="flex items-center gap-2 ml-4">
                           <div className={`text-right ${secondaryText}`}>
                             <div className="text-xs">Joined</div>
-                            <div className="text-sm font-medium">{formatDate(contestParticipation.joinedAt)}</div>
+                            <div className="text-sm font-medium">{contestParticipation.joinedAt ? formatDate(contestParticipation.joinedAt) : 'N/A'}</div>
                           </div>
                           <ChevronRight className="w-5 h-5 text-gray-400" />
                         </div>
@@ -835,7 +903,7 @@ const ProfilePage = () => {
                 </div>
                 <h3 className={`text-xl font-medium ${textColor}`}>No Contest Participation Yet</h3>
                 <p className={`${secondaryText} mt-3 max-w-md`}>
-                  You haven't participated in any contests yet. Join upcoming contests to compete with other developers and earn ranking points.
+                  You haven&apos;t participated in any contests yet. Join upcoming contests to compete with other developers and earn ranking points.
                 </p>
                 <button
                   className="mt-6 px-5 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white font-medium transition-colors"

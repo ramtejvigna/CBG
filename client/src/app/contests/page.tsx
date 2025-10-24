@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/context/AuthContext"
+import { getSessionToken, createAuthHeaders } from '@/lib/auth'
 import { useRouter } from "next/navigation"
 import { generateSlug } from "@/lib/challengeUtils"
 
@@ -61,13 +62,10 @@ const ContestsPage = () => {
                 setLoading(true)
                 setError(null)
                 
-                // Get auth token for authenticated requests
-                const token = localStorage.getItem('auth-token')
+                // Get session token for authenticated requests
                 const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                }
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`
+                    'Content-Type': 'application/json',
+                    ...createAuthHeaders()
                 }
                 
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests`, {
@@ -90,18 +88,18 @@ const ContestsPage = () => {
         fetchContests()
     }, [user])
 
-    const getDifficultyColor = (difficulty: string) => {
-        switch (difficulty?.toLowerCase()) {
-            case "easy":
-                return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-            case "medium":
-                return "bg-amber-500/20 text-amber-400 border-amber-500/30"
-            case "hard":
-                return "bg-rose-500/20 text-rose-400 border-rose-500/30"
-            default:
-                return "bg-slate-500/20 text-slate-400 border-slate-500/30"
-        }
-    }
+    // const getDifficultyColor = (difficulty: string) => {
+    //     switch (difficulty?.toLowerCase()) {
+    //         case "easy":
+    //             return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+    //         case "medium":
+    //             return "bg-amber-500/20 text-amber-400 border-amber-500/30"
+    //         case "hard":
+    //             return "bg-rose-500/20 text-rose-400 border-rose-500/30"
+    //         default:
+    //             return "bg-slate-500/20 text-slate-400 border-slate-500/30"
+    //     }
+    // }
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -155,7 +153,7 @@ const ContestsPage = () => {
             setError(null)
             setRegistrationSuccess(null)
 
-            const token = localStorage.getItem('auth-token')
+            const token = getSessionToken()
             // if (!token) {
             //     router.push('/login')
             //     return

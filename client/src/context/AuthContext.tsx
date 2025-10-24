@@ -5,6 +5,21 @@ import { useRouter, usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useAuthStore, User } from '../lib/store/authStore';
 
+// Extend the session type to include sessionToken
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      username?: string | null;
+      image?: string | null;
+      needsOnboarding?: boolean;
+      sessionToken?: string;
+    };
+  }
+}
+
 // Define auth context type
 interface AuthContextType {
     user: User | null;
@@ -50,13 +65,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Update the auth store with session data for consistency
                 const { setUser } = useAuthStore.getState();
                 setUser({
-                    id: session.user.id,
+                    id: session.user.id || '',
                     email: session.user.email || '',
                     name: session.user.name || '',
                     username: session.user.username || '',
                     image: session.user.image || '',
                     needsOnboarding: session.user.needsOnboarding
-                } as any);
+                } as User);
+                console.log(session);
+                // If there's a session token from social login, store it
+                if (session.user.sessionToken) {
+                    const { setSessionToken } = await import('../lib/auth');
+                    setSessionToken(session.user.sessionToken);
+                }
             } else {
                 // No NextAuth session, try custom auth check
                 await checkAuth();
@@ -105,7 +126,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             await storeLogin(email, password);
             router.push('/profile');
-        } catch (err) {
+        } catch {
             // Error is already handled in the store
             throw new Error('Login failed');
         }
@@ -115,7 +136,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             await storeSignup(userData);
             router.push('/profile');
-        } catch (err) {
+        } catch {
             // Error is already handled in the store
             throw new Error('Signup failed');
         }

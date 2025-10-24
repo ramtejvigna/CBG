@@ -15,11 +15,6 @@ export const useThemeStore = create<ThemeState>()(
       theme: 'dark',
       setTheme: (theme: Theme) => {
         set({ theme })
-        // Apply theme to document
-        if (typeof window !== 'undefined') {
-          document.documentElement.classList.toggle('dark', theme === 'dark')
-          document.documentElement.classList.toggle('light', theme === 'light')
-        }
       },
       toggleTheme: () => {
         const { theme, setTheme } = get()
@@ -29,13 +24,6 @@ export const useThemeStore = create<ThemeState>()(
     {
       name: 'theme-storage',
       partialize: (state) => ({ theme: state.theme }),
-      onRehydrateStorage: () => (state) => {
-        // Apply theme to document on hydration
-        if (state?.theme && typeof window !== 'undefined') {
-          document.documentElement.classList.toggle('dark', state.theme === 'dark')
-          document.documentElement.classList.toggle('light', state.theme === 'light')
-        }
-      },
     }
   )
 )

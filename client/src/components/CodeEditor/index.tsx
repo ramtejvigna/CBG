@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import Editor, { Monaco } from "@monaco-editor/react";
+import { editor } from 'monaco-editor';
 import { useThemeStore } from "@/lib/store/themeStore";
 
 interface CodeEditorProps {
@@ -20,7 +21,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     theme: editorTheme,
     readOnly = false,
 }) => {
-    const editorRef = useRef<any>(null);
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
         const { theme: appTheme } = useThemeStore();
 
     // Map language to monaco editor language
@@ -37,7 +38,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     };
 
     // Handle editor mount
-    const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+    const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
         editorRef.current = editor;
 
         // Configure editor settings
@@ -64,7 +65,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     useEffect(() => {
         if (editorRef.current) {
             setTimeout(() => {
-                editorRef.current.focus();
+                editorRef.current?.focus();
             }, 100);
         }
     }, []);

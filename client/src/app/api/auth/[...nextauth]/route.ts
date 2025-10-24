@@ -15,6 +15,7 @@ declare module "next-auth" {
       username?: string | null;
       image?: string | null;
       needsOnboarding?: boolean;
+      sessionToken?: string;
     }
   }
   
@@ -25,6 +26,7 @@ declare module "next-auth" {
     username?: string | null;
     image?: string | null;
     needsOnboarding?: boolean;
+    sessionToken?: string;
   }
 }
 
@@ -62,7 +64,8 @@ const handler = NextAuth({
 
           const data = await response.json();
 
-          if (response.ok && data.success && data.user) {
+          if (response.ok && data.success && data.user && data.sessionToken) {
+            // Store the session token for later use
             return {
               id: data.user.id,
               email: data.user.email,
@@ -70,6 +73,7 @@ const handler = NextAuth({
               username: data.user.username,
               image: data.user.image,
               needsOnboarding: data.needsOnboarding || false,
+              sessionToken: data.sessionToken, // Pass the session token
             };
           }
 
@@ -88,12 +92,6 @@ const handler = NextAuth({
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        console.log('NextAuth signIn callback:', { 
-          provider: account?.provider, 
-          userId: user.id, 
-          userEmail: user.email 
-        });
-
         // Skip backend call for credentials provider as it's already authenticated
         if (account?.provider === "credentials") {
           return true;
@@ -123,7 +121,6 @@ const handler = NextAuth({
           });
 
           const data = await response.json();
-          console.log('Backend response:', { success: data.success, needsOnboarding: data.needsOnboarding });
 
           if (!response.ok) {
             console.error('Backend error response:', data);
@@ -135,7 +132,11 @@ const handler = NextAuth({
             user.id = data.user.id;
             user.username = data.user.username;
             user.needsOnboarding = data.needsOnboarding;
-            console.log('Updated user object:', { id: user.id, username: user.username, needsOnboarding: user.needsOnboarding });
+            
+            // Store session token in user object for later use
+            if (data.sessionToken) {
+              user.sessionToken = data.sessionToken;
+            }
           }
 
           return true;
@@ -157,12 +158,11 @@ const handler = NextAuth({
           // Check if user needs onboarding by verifying username format
           const needsOnboarding = !user.username || user.username.includes('temp_') || user.username.length < 3;
           session.user.needsOnboarding = needsOnboarding;
-
-          console.log('Session callback:', { 
-            userId: session.user.id, 
-            username: session.user.username, 
-            needsOnboarding 
-          });
+          console.log(user)
+          // If session token exists in user object, make it available
+          if (user.sessionToken) {
+            session.user.sessionToken = user.sessionToken;
+          }
         }
         return session;
       } catch (error) {

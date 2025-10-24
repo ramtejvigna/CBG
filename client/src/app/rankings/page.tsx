@@ -1,11 +1,10 @@
 "use client";
 
-import { Key, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Award, Medal, Search, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { useThemeStore } from "@/lib/store/themeStore";
 import { Skeleton } from "@/components/ui/skeleton"; 
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useThemeStore } from "@/lib/store/themeStore"
 import { useAuthStore } from "@/lib/store"
-import useActivities from "@/hooks/useActivities"
+import useActivities, { Activity } from "@/hooks/useActivities"
 import { ActivityListSkeleton } from "@/components/ActivitySkeleton"
 import { Code, Trophy, Star, Clock, CheckCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -146,7 +146,7 @@ const ActivityFeedPage = () => {
         return "bg-gray-500/20 text-gray-400 border-gray-500/30"
     }
 
-    const formatActivityDescription = (activity: any) => {
+    const formatActivityDescription = (activity: Activity) => {
         const baseDescription = activity.result;
         
         switch (activity.type) {

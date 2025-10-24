@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { generateChallengeUrl } from "@/lib/challengeUtils"
 import useChallenges from "@/hooks/useChallenges"
-import { Challenge } from "@/lib/store/challengesStore"
 
 type SortableField = 'title' | 'difficulty' | 'points' | '_count'
 

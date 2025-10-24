@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '@/lib/store';
+import { getSessionToken } from '@/lib/auth';
 
 export interface Activity {
     id: string;
@@ -87,7 +88,7 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
                 }
             });
 
-            const token = localStorage.getItem('auth-token')
+            const token = getSessionToken()
 
             // Use environment variable or fallback to relative path for development
             const baseUrl = process.env.NEXT_PUBLIC_API_URL;

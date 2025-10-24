@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getSessionToken, createAuthHeaders } from '@/lib/auth'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -98,12 +99,9 @@ const ContestPage = () => {
                 // First, we need to get the contest by title slug
                 // Since we don't have a direct slug-to-ID endpoint, we'll get all contests
                 // and find the one with matching slug
-                const token = localStorage.getItem('auth-token')
                 const headers: Record<string, string> = {
-                    'Content-Type': 'application/json'
-                }
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`
+                    'Content-Type': 'application/json',
+                    ...createAuthHeaders()
                 }
 
                 const contestsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests`, {
@@ -134,7 +132,7 @@ const ContestPage = () => {
                 setContest(contestDetails)
 
                 // Check registration status if user is logged in
-                if (user && token) {
+                if (user && getSessionToken()) {
                     try {
                         const regResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests/${foundContest.id}/registration-status`, {
                             headers
@@ -252,7 +250,7 @@ const ContestPage = () => {
             setRegistering(true)
             setError(null)
 
-            const token = localStorage.getItem('auth-token')
+            const token = getSessionToken()
             if (!token) {
                 router.push('/login')
                 return
@@ -261,8 +259,8 @@ const ContestPage = () => {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests/${contest.id}/register`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    ...createAuthHeaders()
                 }
             })
 
@@ -565,7 +563,7 @@ const ContestPage = () => {
                                                 <TableBody>
                                                     {contest.challenges.map((challenge, index) => (
                                                         <TableRow
-                                                            key={challenge.id}
+                                                            key={index}
                                                             className={`border-slate-700 ${contest.status === "ONGOING" && isRegistered
                                                                 ? "hover:bg-slate-700/50 cursor-pointer"
                                                                 : "hover:bg-transparent"

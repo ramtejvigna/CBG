@@ -11,9 +11,6 @@ import {
   Zap,
   Terminal,
   ArrowRight,
-  BookOpen,
-  Github,
-  Award,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/authStore"
 import { useThemeStore } from "@/lib/store/themeStore"
@@ -45,8 +42,6 @@ const Home = () => {
   const [cursor, setCursor] = useState(true)
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const { theme } = useThemeStore()
   const { user } = useAuthStore()
 
@@ -61,7 +56,7 @@ const Home = () => {
       const data = await response.json();
       setChallenges(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Failed to fetch challenges:', err);
     }
   };
 
@@ -74,7 +69,7 @@ const Home = () => {
       const data = await response.json();
       setLeaderboardData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Failed to fetch leaderboard:', err instanceof Error ? err.message : err);
     }
   };
 
@@ -119,13 +114,8 @@ const Home = () => {
   }, [challenges.length, exampleCode])
 
   useEffect(() => {
-    setIsLoading(true);
-    Promise.all([
-      fetchChallenges(),
-      fetchLeaderboard()
-    ]).finally(() => {
-      setIsLoading(false);
-    });
+    fetchChallenges();
+    fetchLeaderboard();
   }, []);
 
   return (
@@ -206,7 +196,7 @@ const Home = () => {
                 </pre>
                 <pre className={`${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
                   <span className="text-purple-400">console</span>.<span className="text-yellow-400">log</span>(
-                  <span className="text-yellow-400">findWinner</span>([{'{'} name: <span className="text-green-400">'Alice'</span>, points: <span className="text-purple-400">1500</span> {'}'}, {'{'} name: <span className="text-green-400">'Bob'</span>, points: <span className="text-purple-400">2000</span> {'}'}, {'{'} name: <span className="text-green-400">'Charlie'</span>, points: <span className="text-purple-400">1800</span> {'}'}]));
+                  <span className="text-yellow-400">findWinner</span>([{'{'} name: <span className="text-green-400">&apos;Alice&apos;</span>, points: <span className="text-purple-400">1500</span> {'}'}, {'{'} name: <span className="text-green-400">&apos;Bob&apos;</span>, points: <span className="text-purple-400">2000</span> {'}'}, {'{'} name: <span className="text-green-400">&apos;Charlie&apos;</span>, points: <span className="text-purple-400">1800</span> {'}'}]));
                   <br />
                   <span className={`${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
                     {codeTyped.substring(exampleCode.length)}

@@ -1,17 +1,18 @@
 import express from "express"
 import { googleAuth, login, signup, logout, completeOnboarding, me, forgotPassword, resetPassword, validateResetToken } from "../controllers/authControllers.js";
 import { authenticate } from "../middleware/auth.js";
+import { loginRateLimit, passwordResetRateLimit, strictRateLimit } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
-router.post('/login', login);
-router.post('/signup', signup);
+router.post('/login', loginRateLimit, login);
+router.post('/signup', strictRateLimit, signup);
 router.post('/logout', logout);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
-router.post('/validate-reset-token', validateResetToken);
-router.post('/google', googleAuth);
-router.post('/complete-onboarding', completeOnboarding);
+router.post('/forgot-password', passwordResetRateLimit, forgotPassword);
+router.post('/reset-password', passwordResetRateLimit, resetPassword);
+router.post('/validate-reset-token', strictRateLimit, validateResetToken);
+router.post('/google', loginRateLimit, googleAuth);
+router.post('/complete-onboarding', authenticate, completeOnboarding);
 router.get('/me', authenticate, me);
 
 export default router;

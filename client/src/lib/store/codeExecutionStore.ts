@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getSessionToken } from '../auth'
 
 interface TestResult {
   input: string;
@@ -62,7 +63,7 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
         setError(null)
 
         try {
-          const token = localStorage.getItem('auth-token')
+          const token = getSessionToken()
           let userId = null
 
           // Get user ID from token if available for submissions
@@ -71,7 +72,7 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
               const payload = JSON.parse(atob(token.split('.')[1]))
               console.log(payload.userId)
               userId = payload.userId
-            } catch (err) {
+            } catch {
               console.warn('Could not extract user ID from token')
             }
           }

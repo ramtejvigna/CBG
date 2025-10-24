@@ -4,17 +4,13 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '@/lib/store/authStore';
 import Loader from '@/components/Loader';
 import {
-    Calendar,
     User as UserIcon,
     Bell,
     Shield,
     CreditCard,
     Settings as SettingsIcon,
-    Moon,
-    Sun,
     ChevronRight,
     LogOut,
-    Edit,
     Upload,
     X,
     Zap
@@ -23,17 +19,14 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useCurrentUserImage } from '@/hooks/useUserImage';
-import { UserAvatar } from '@/components/ui/UserAvatar';
 
 const Settings = () => {
     const { user } = useAuthStore();
-    const { theme, toggleTheme } = useThemeStore();
+    const { theme } = useThemeStore();
     const { userData, loading: profileLoading, fetchUserProfileById, updateUserProfile } = useUserProfile();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('profile');
-    const [isEditing, setIsEditing] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [imageUploading, setImageUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +52,7 @@ const Settings = () => {
         } else if (userData) {
             setLoading(false);
         }
-    }, [user?.id, userData, profileLoading]); // Removed fetchUserProfileById from dependencies
+    }, [user?.id, userData, profileLoading, fetchUserProfileById]);
 
     // Reset fetch flag when user changes
     useEffect(() => {
@@ -146,7 +139,7 @@ const Settings = () => {
         return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            const img = new Image();
+            const img = document.createElement('img');
             
             img.onload = () => {
                 // Calculate new dimensions
@@ -200,7 +193,6 @@ const Settings = () => {
 
             await updateUserProfile(user.id, updateData);
             toast.success("Profile updated successfully");
-            setIsEditing(false);
         } catch (err) {
             console.error("Error updating profile:", err);
             toast.error("Error saving profile changes");

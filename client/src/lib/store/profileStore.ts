@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getSessionToken } from '../auth'
 
 export interface UserProfile {
   id: string;
@@ -66,8 +67,8 @@ interface ProfileState {
 }
 
 const getAuthHeaders = () => {
-  // Use the correct token key ('auth-token' instead of 'token')
-  const token = localStorage.getItem('auth-token');
+  // Use session token from sessionStorage
+  const token = getSessionToken();
   return {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
