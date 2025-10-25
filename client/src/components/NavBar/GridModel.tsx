@@ -1,10 +1,11 @@
-"uuse client"
+"use client"
 
 import Link from "next/link"
 import React, { useEffect, useRef } from "react"
-import { Code, Award, Star, Activity } from "lucide-react"
+import { Code, Award, Star, Activity, Shield } from "lucide-react"
 import { useChallengesStore } from "@/lib/store/challengesStore"
 import { useThemeStore } from "@/lib/store/themeStore"
+import { useAuthStore } from "@/lib/store/authStore"
 
 interface GridModelProps {
   onClose: () => void;
@@ -12,6 +13,7 @@ interface GridModelProps {
 
 const GridModel = ({ onClose }: GridModelProps) => {
   const { theme } = useThemeStore();
+  const { user } = useAuthStore();
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +45,16 @@ const GridModel = ({ onClose }: GridModelProps) => {
       ],
     },
   ]
+
+  // Add admin category if user is admin
+  if (user?.role === 'ADMIN') {
+    categories.push({
+      title: "Administration",
+      items: [
+        { name: "Admin Panel", icon: <Shield className="w-4 h-4" />, href: "/admin" },
+      ],
+    });
+  }
   
   const { challenges } = useChallengesStore((state) => state)
 
@@ -87,7 +99,7 @@ const GridModel = ({ onClose }: GridModelProps) => {
       } border shadow-xl rounded-lg w-[480px] z-50 animate-in fade-in-50 slide-in-from-top-5 duration-200`}
     >
       <div className="p-4">
-        <div className="grid grid-cols-2 gap-6">
+        <div className={`grid ${user?.role === 'ADMIN' ? 'grid-cols-3' : 'grid-cols-2'} gap-6`}>
           {categories.map((category, index) => (
             <div key={index} className="space-y-3">
               <h3 className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} font-medium text-sm`}>{category.title}</h3>
@@ -96,17 +108,24 @@ const GridModel = ({ onClose }: GridModelProps) => {
                   <Link
                     key={idx}
                     href={item.href}
+                    onClick={onClose}
                     className={`flex items-center p-2 rounded-md ${
                       theme === 'dark'
                         ? 'hover:bg-gray-800'
                         : 'hover:bg-gray-100'
-                    } transition-colors group`}
+                    } transition-colors group ${
+                      category.title === 'Administration' ? 'bg-orange-500/10 border border-orange-500/20' : ''
+                    }`}
                   >
                     <span className={`${
-                      theme === 'dark' ? 'text-gray-500' : 'text-gray-600'
+                      category.title === 'Administration' 
+                        ? 'text-orange-500'
+                        : theme === 'dark' ? 'text-gray-500' : 'text-gray-600'
                     } group-hover:text-orange-500 transition-colors`}>{item.icon}</span>
                     <span className={`ml-2 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      category.title === 'Administration'
+                        ? 'text-orange-600 font-medium'
+                        : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                     } text-sm`}>{item.name}</span>
                   </Link>
                 ))}

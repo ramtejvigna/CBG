@@ -14,7 +14,7 @@ import {
     getUserImage,
     getCurrentUserImage
 } from '../controllers/userControllers.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authenticateAdmin } from '../middleware/auth.js';
 import { fileUploadRateLimit, createProgressiveRateLimit } from '../middleware/rateLimiter.js';
 
 const router = Router();
@@ -36,7 +36,7 @@ router.put('/:userId/profile', fileUploadRateLimit, largePayloadParser, updateUs
 router.get('/submissions', authenticate, getUserSubmissions);
 router.get('/me/image', authenticate, getCurrentUserImage);
 router.post('/rankings/refresh', authenticate, progressiveRateLimit, refreshRankings);
-router.get('/users', authenticate, getAllUsers);
+router.get('/users', authenticateAdmin, getAllUsers);
 router.get('/profile/:username/activity', authenticate, getUserActivity);
 router.get('/profile/:username/submissions', authenticate, getUserSubmissionsByUsername);
 router.get('/profile/:username/contests', authenticate, getUserContests);
