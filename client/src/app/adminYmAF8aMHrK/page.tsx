@@ -206,7 +206,7 @@ const AdminDashboard = () => {
                     </div>
                     
                     <div className="space-y-3">
-                        <Link href="/admin/challenges" className={`block w-full text-left p-3 rounded-md border transition-colors ${
+                        <Link href="/adminYmAF8aMHrK/challenges" className={`block w-full text-left p-3 rounded-md border transition-colors ${
                             theme === 'dark' 
                                 ? 'border-gray-600 hover:bg-gray-700' 
                                 : 'border-gray-200 hover:bg-gray-50'
@@ -224,7 +224,7 @@ const AdminDashboard = () => {
                             </div>
                         </Link>
                         
-                        <Link href="/admin/contests" className={`block w-full text-left p-3 rounded-md border transition-colors ${
+                        <Link href="/adminYmAF8aMHrK/contests" className={`block w-full text-left p-3 rounded-md border transition-colors ${
                             theme === 'dark' 
                                 ? 'border-gray-600 hover:bg-gray-700' 
                                 : 'border-gray-200 hover:bg-gray-50'
@@ -242,7 +242,7 @@ const AdminDashboard = () => {
                             </div>
                         </Link>
                         
-                        <Link href="/admin/users" className={`block w-full text-left p-3 rounded-md border transition-colors ${
+                        <Link href="/adminYmAF8aMHrK/users" className={`block w-full text-left p-3 rounded-md border transition-colors ${
                             theme === 'dark' 
                                 ? 'border-gray-600 hover:bg-gray-700' 
                                 : 'border-gray-200 hover:bg-gray-50'

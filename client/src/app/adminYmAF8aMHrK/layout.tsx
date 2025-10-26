@@ -31,7 +31,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
     useEffect(() => {
         if (!loading && (!user || user.role !== 'ADMIN')) {
-            router.push('/admin/login');
+            router.push('/adminYmAF8aMHrK/login');
         }
     }, [user, loading, router]);
 
@@ -40,20 +40,20 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
 
     if (!user || user.role !== 'ADMIN') {
-        router.push('/admin/login');
+        router.push('/adminYmAF8aMHrK/login');
     }
 
     const navigation = [
         { name: 'Dashboard', href: '/admin', icon: BarChart3 },
-        { name: 'User Management', href: '/admin/users', icon: Users },
-        { name: 'Challenge Management', href: '/admin/challenges', icon: Code2 },
-        { name: 'Contest Management', href: '/admin/contests', icon: Trophy },
-        { name: 'System Settings', href: '/admin/settings', icon: Settings },
+        { name: 'User Management', href: '/adminYmAF8aMHrK/users', icon: Users },
+        { name: 'Challenge Management', href: '/adminYmAF8aMHrK/challenges', icon: Code2 },
+        { name: 'Contest Management', href: '/adminYmAF8aMHrK/contests', icon: Trophy },
+        { name: 'System Settings', href: '/adminYmAF8aMHrK/settings', icon: Settings },
     ];
 
     const handleLogout = async () => {
         await logout();
-        router.push('/admin/login');
+        router.push('/adminYmAF8aMHrK/login');
     };
 
     return (

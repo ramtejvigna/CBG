@@ -24,7 +24,7 @@ export default function ClientLayout({
     }, []);
 
     // Define routes where you don't want to show NavBar and Footer
-    const noNavBarFooterRoutes = ["/login", "/signup", "/admin"];
+    const noNavBarFooterRoutes = ["/login", "/signup", "/adminYmAF8aMHrK"];
 
     // Check if the current route is in the noNavBarFooterRoutes array or starts with any of those paths (like /admin/*)
     const shouldShowNavBarFooter = !noNavBarFooterRoutes.some(
