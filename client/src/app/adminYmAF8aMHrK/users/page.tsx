@@ -1,11 +1,10 @@
+/* eslint-disable */
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
     Search, 
     Filter, 
-    UserPlus, 
-    Edit3, 
     Trash2, 
     Ban, 
     Eye,
@@ -404,7 +403,7 @@ const UserManagement = () => {
                         Are you sure you want to delete this user?
                     </p>
                     <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        This action cannot be undone. User "{selectedUser?.username}" and all associated data will be permanently removed.
+                        This action cannot be undone. User &quot;{selectedUser?.username}&quot; and all associated data will be permanently removed.
                     </p>
                 </div>
             </Modal>

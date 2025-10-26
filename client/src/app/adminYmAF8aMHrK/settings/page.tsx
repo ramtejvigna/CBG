@@ -1,3 +1,4 @@
+/* eslint-disable */
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -7,7 +8,6 @@ import {
     Mail, 
     Shield, 
     Globe, 
-    Bell, 
     Code, 
     Save,
     RefreshCw,

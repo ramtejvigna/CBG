@@ -8,7 +8,6 @@ import {
     Trophy,
     Settings,
     BarChart3,
-    Calendar,
     Code2,
     Shield,
     LogOut,

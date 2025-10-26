@@ -13,7 +13,6 @@ import {
     Lock,
     Mail,
     Terminal,
-    Code
 } from 'lucide-react';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { useAuthStore } from '@/lib/store/authStore';
