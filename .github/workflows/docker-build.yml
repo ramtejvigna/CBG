@@ -50,25 +50,33 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Validate Docker Hub credentials format
+    - name: Clean and validate credentials
       run: |
-        echo "🔍 Validating credentials format..."
-        echo "Username: $DOCKER_USERNAME"
-        echo "Username length: ${#DOCKER_USERNAME}"
-        echo "Password length: ${#DOCKER_PASSWORD}"
-        echo "Password prefix: ${DOCKER_PASSWORD:0:8}"
+        echo "🧹 Cleaning and validating credentials..."
         
-        # Check if password is a Docker Hub token
-        if [[ "$DOCKER_PASSWORD" == dckr_pat_* ]]; then
-          echo "✅ Password appears to be a valid Docker Hub Personal Access Token"
+        # Clean whitespace from secrets
+        CLEAN_USERNAME=$(echo "$DOCKER_USERNAME" | tr -d '[:space:]')
+        CLEAN_PASSWORD=$(echo "$DOCKER_PASSWORD" | tr -d '[:space:]')
+        
+        echo "Original username length: ${#DOCKER_USERNAME}"
+        echo "Cleaned username length: ${#CLEAN_USERNAME}"
+        echo "Original password length: ${#DOCKER_PASSWORD}"
+        echo "Cleaned password length: ${#CLEAN_PASSWORD}"
+        
+        # Expected values
+        expected_username="ramtejvigna"
+        echo "Expected username length: ${#expected_username}"
+        
+        if [ "${#CLEAN_USERNAME}" -eq "${#expected_username}" ]; then
+          echo "✅ Username length is correct after cleaning"
         else
-          echo "⚠️  Password does not appear to be a Docker Hub Personal Access Token"
-          echo "Expected format: dckr_pat_..."
+          echo "❌ Username length still incorrect after cleaning"
+          echo "This suggests the secret contains extra characters"
         fi
         
-        # Test basic connectivity to Docker Hub
-        echo "🌐 Testing Docker Hub connectivity..."
-        curl -s https://registry-1.docker.io/v2/ || echo "❌ Cannot reach Docker Hub registry"
+        # Export cleaned values for next steps
+        echo "CLEAN_DOCKER_USERNAME=$CLEAN_USERNAME" >> $GITHUB_ENV
+        echo "CLEAN_DOCKER_PASSWORD=$CLEAN_PASSWORD" >> $GITHUB_ENV
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -76,18 +84,21 @@ jobs:
     - name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
       run: |
-        echo "🔐 Attempting Docker Hub login..."
-        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        echo "🔐 Attempting Docker Hub login with cleaned credentials..."
+        echo "Using username: $CLEAN_DOCKER_USERNAME"
+        echo "Username length: ${#CLEAN_DOCKER_USERNAME}"
+        echo "Password length: ${#CLEAN_DOCKER_PASSWORD}"
+        
+        # Try login with cleaned credentials
+        echo "$CLEAN_DOCKER_PASSWORD" | docker login -u "$CLEAN_DOCKER_USERNAME" --password-stdin
+        
         if [ $? -eq 0 ]; then
-          echo "✅ Docker Hub login successful!"
+          echo "✅ Docker Hub login successful with cleaned credentials!"
         else
-          echo "❌ Docker Hub login failed!"
-          echo "Trying alternative login method..."
-          docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+          echo "❌ Docker Hub login still failed with cleaned credentials"
+          echo "This suggests the secret values themselves are incorrect"
+          exit 1
         fi
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push server Docker image
       uses: docker/build-push-action@v5
@@ -95,8 +106,8 @@ jobs:
         context: ./server
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/cbg-server:latest
-          ${{ secrets.DOCKER_USERNAME }}/cbg-server:${{ github.sha }}
+          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-server:latest
+          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-server:${{ github.sha }}
         platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -107,8 +118,8 @@ jobs:
         context: ./client
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/cbg-client:latest
-          ${{ secrets.DOCKER_USERNAME }}/cbg-client:${{ github.sha }}
+          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-client:latest
+          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-client:${{ github.sha }}
         platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max
