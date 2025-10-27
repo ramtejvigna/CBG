@@ -70,13 +70,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     name: session.user.name || '',
                     username: session.user.username || '',
                     image: session.user.image || '',
-                    needsOnboarding: session.user.needsOnboarding
+                    needsOnboarding: session.user.needsOnboarding || false
                 } as User);
-                console.log(session);
+                console.log('Session data:', session);
                 // If there's a session token from social login, store it
                 if (session.user.sessionToken) {
+                    console.log('Storing sessionToken from NextAuth session:', session.user.sessionToken);
                     const { setSessionToken } = await import('../lib/auth');
                     setSessionToken(session.user.sessionToken);
+                } else {
+                    console.log('No sessionToken found in NextAuth session');
                 }
             } else {
                 // No NextAuth session, try custom auth check

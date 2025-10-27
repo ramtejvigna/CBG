@@ -4,13 +4,15 @@ import React from 'react';
 import { ArrowRight, Code, Trophy, Users, BookOpen, Laptop, Target, Globe, Github, Twitter, Linkedin } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image'; // Import the Image component
+import CountUp from '@/components/CountUp';
+import ProfileCard from '@/components/ProfileCard';
 
 const AboutPage = () => {
     // Team developers data
     const developer = {
-        name: "Vigna Ramtej Telagarapu",
+        name: "Vigna Ramtej",
         role: "Software Developer",
-        image: "/images/Me.webp", // Update the path accordingly
+        image: "/Me.png", // Update the path accordingly
         bio: "B.tech in Artificial Intelligence and Data Science with experience in Full Stack Web Developement and Data Science ",
         github: "https://github.com/ramtejvigna",
         twitter: "https://x.com/ramtejvigna46",
@@ -19,10 +21,10 @@ const AboutPage = () => {
 
     // Platform statistics
     const statistics = [
-        { label: "Coding Battles", value: "1,500+", icon: Code },
-        { label: "Active Warriors", value: "125K+", icon: Users },
-        { label: "Certifications", value: "24", icon: Trophy },
-        { label: "Languages", value: "12", icon: Globe }
+        { label: "Coding Battles", value: 300, icon: Code },
+        { label: "Active Warriors", value: 125, icon: Users },
+        { label: "Problem Set", value: 400, icon: Code },
+        { label: "Languages", value: 12, icon: Globe }
     ];
 
     // Core values
@@ -115,7 +117,14 @@ const AboutPage = () => {
                                     <stat.icon size={24} className="text-orange-500" />
                                 </div>
                                 <div className="text-3xl font-bold mb-1 bg-gradient-to-tr from-[#F14A00] to-[#C62300] bg-clip-text text-transparent">
-                                    {stat.value}
+                                    <CountUp
+                                        from={0}
+                                        to={stat.value}
+                                        separator=","
+                                        direction="up"
+                                        duration={1}
+                                        className="count-up-text"
+                                    />
                                 </div>
                                 <div className="text-gray-400">{stat.label}</div>
                             </div>
@@ -123,24 +132,6 @@ const AboutPage = () => {
                     </div>
                 </div>
             </div>
-
-            {/* Story Section
-            <div className="py-16 bg-gray-800">
-                <div className="container mx-auto px-8 max-w-4xl">
-                    <h2 className="text-3xl font-bold mb-8 text-center">Our Story</h2>
-                    <div className="bg-gray-900 rounded-lg p-8 border border-gray-700">
-                        <p className="text-gray-300 mb-4">
-                            CodeBattleGround began in 2020 when a group of competitive programmers saw a gap in how coding was being taught. Traditional tutorials and courses often lacked the excitement and real-world applications that make coding truly engaging.
-                        </p>
-                        <p className="text-gray-300 mb-4">
-                            We created a platform where learning happens through carefully designed battles and challenges that simulate real-world problems. What started as a small community has grown into a thriving ecosystem of developers ranging from beginners to industry veterans.
-                        </p>
-                        <p className="text-gray-300">
-                            Today, our certifications are recognized by leading tech companies, and our battle system has helped thousands of developers prepare for technical interviews, compete in hackathons, and build practical skills that transfer directly to their careers.
-                        </p>
-                    </div>
-                </div>
-            </div> */}
 
             {/* Core Values */}
             <div className="py-16 bg-gray-900">
@@ -165,12 +156,17 @@ const AboutPage = () => {
                 <div className="container mx-auto px-8 max-w-5xl">
                     <h2 className="text-3xl font-bold mb-12 text-center">Developed by</h2>
                     <div className="grid grid-cols-1 items-center md:grid-cols-2 gap-8">
-                        <Image
-                            src={developer.image}
-                            alt={developer.name}
-                            width={240}
-                            height={200}
-                            className="rounded-full mx-auto mb-4 border-2 border-orange-500"
+                        <ProfileCard
+                            name={developer.name}
+                            title={developer.role}
+                            handle="ramtejvigna"
+                            status="Online"
+                            contactText="Contact Me"
+                            avatarUrl={developer.image}
+                            showUserInfo={true}
+                            enableTilt={false}
+                            enableMobileTilt={false}
+                            onContactClick={() => window.open(developer.linkedin, '_blank')}
                         />
                         <div>
                             <h3 className="text-xl font-semibold mb-1">{developer.name}</h3>

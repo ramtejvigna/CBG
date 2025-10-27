@@ -697,3 +697,49 @@ export const validateResetToken = async (req: Request, res: Response) => {
         });
     }
 };
+
+// Get session token for a user (used by NextAuth)
+export const getSessionToken = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.params;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required'
+            });
+        }
+
+        // Get the most recent valid session for the user
+        const session = await prisma.session.findFirst({
+            where: {
+                userId: userId,
+                expires: {
+                    gt: new Date() // Only return non-expired sessions
+                }
+            },
+            orderBy: {
+                expires: 'desc' // Get the most recent session (by expiry date)
+            }
+        });
+
+        if (!session) {
+            return res.status(404).json({
+                success: false,
+                message: 'No valid session found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            sessionToken: session.sessionToken
+        });
+
+    } catch (error) {
+        console.error('Get session token error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+};

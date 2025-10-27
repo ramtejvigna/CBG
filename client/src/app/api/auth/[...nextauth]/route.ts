@@ -28,10 +28,21 @@ declare module "next-auth" {
     needsOnboarding?: boolean;
     sessionToken?: string;
   }
+
+  interface JWT {
+    id?: string;
+    sessionToken?: string;
+    username?: string;
+    needsOnboarding?: boolean;
+    email?: string;
+    name?: string;
+    image?: string;
+  }
 }
 
 const handler = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  // Remove PrismaAdapter when using JWT sessions to avoid conflicts
+  // adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -86,10 +97,31 @@ const handler = NextAuth({
     }),
   ],
   session: {
-    strategy: "database",
+    strategy: "jwt",
   },
   debug: process.env.NODE_ENV === 'development',
   callbacks: {
+    async jwt({ token, user, account }) {
+      
+      // Store user data in the JWT token when user signs in
+      if (user) {
+        // Store all user data in token
+        token.id = user.id;
+        token.username = user.username;
+        token.needsOnboarding = user.needsOnboarding;
+        token.email = user.email;
+        token.name = user.name;
+        token.image = user.image;
+        
+        // Store the sessionToken in the JWT token when user signs in
+        if (user.sessionToken) {
+          token.sessionToken = user.sessionToken;
+        } else {
+          console.log('JWT callback - No sessionToken found in user object');
+        }
+      }
+      return token;
+    },
     async signIn({ user, account, profile }) {
       try {
         // Skip backend call for credentials provider as it's already authenticated
@@ -99,12 +131,11 @@ const handler = NextAuth({
 
         // Handle Google OAuth
         if (account?.provider === "google") {
+          
           if (!process.env.NEXT_PUBLIC_API_URL) {
             console.error('NEXT_PUBLIC_API_URL is not defined');
             return false;
           }
-
-          console.log('Making backend call for Google OAuth...');
 
           // Make API call to your backend to store/update user data
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
@@ -129,14 +160,22 @@ const handler = NextAuth({
 
           // Update user object with data from backend
           if (data.success && data.user) {
+            // Important: Mutate the user object directly for JWT strategy
             user.id = data.user.id;
             user.username = data.user.username;
             user.needsOnboarding = data.needsOnboarding;
+            user.email = data.user.email || user.email;
+            user.name = data.user.name || user.name;
             
             // Store session token in user object for later use
             if (data.sessionToken) {
               user.sessionToken = data.sessionToken;
+            } else {
+              console.log('SignIn callback - No sessionToken received from backend');
             }
+            
+          } else {
+            console.log('SignIn callback - Backend response missing user data or sessionToken');
           }
 
           return true;
@@ -148,25 +187,28 @@ const handler = NextAuth({
         return false;
       }
     },
-    async session({ session, user }) {
-      // With database sessions, we use the user from database
+    async session({ session, token }) {
+      
+      // With JWT sessions, we use the token data
       try {
-        if (session?.user && user) {
-          session.user.id = user.id;
-          session.user.username = user.username;
+        if (session?.user && token) {
+          // Use token data to populate session
+          session.user.id = (token.id as string) || (token.sub as string);
+          session.user.email = (token.email as string) || session.user.email;
+          session.user.name = (token.name as string) || session.user.name;
+          session.user.image = (token.image as string) || session.user.image;
+          session.user.username = token.username as string;
+          session.user.needsOnboarding = token.needsOnboarding as boolean;
           
-          // Check if user needs onboarding by verifying username format
-          const needsOnboarding = !user.username || user.username.includes('temp_') || user.username.length < 3;
-          session.user.needsOnboarding = needsOnboarding;
-          console.log(user)
-          // If session token exists in user object, make it available
-          if (user.sessionToken) {
-            session.user.sessionToken = user.sessionToken;
+          // Get sessionToken from JWT token
+          if (token.sessionToken) {
+            session.user.sessionToken = token.sessionToken as string;
+          } else {
+            console.log('Session callback - No sessionToken found in JWT token');
           }
         }
         return session;
       } catch (error) {
-        console.error('NextAuth session callback error:', error);
         return session;
       }
     },
