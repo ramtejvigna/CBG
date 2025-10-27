@@ -29,6 +29,7 @@ jobs:
           exit 1
         else
           echo "✅ DOCKER_USERNAME environment secret is available"
+          echo "Username length: ${#DOCKER_USERNAME} characters"
         fi
         
         if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
@@ -38,18 +39,55 @@ jobs:
           exit 1
         else
           echo "✅ DOCKER_PASSWORD environment secret is available"
+          echo "Password length: ${#DOCKER_PASSWORD} characters"
+          echo "Password starts with: ${DOCKER_PASSWORD:0:8}..."
         fi
         echo "🎉 All environment secrets are properly configured!"
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Validate Docker Hub credentials format
+      run: |
+        echo "🔍 Validating credentials format..."
+        echo "Username: $DOCKER_USERNAME"
+        echo "Username length: ${#DOCKER_USERNAME}"
+        echo "Password length: ${#DOCKER_PASSWORD}"
+        echo "Password prefix: ${DOCKER_PASSWORD:0:8}"
+        
+        # Check if password is a Docker Hub token
+        if [[ "$DOCKER_PASSWORD" == dckr_pat_* ]]; then
+          echo "✅ Password appears to be a valid Docker Hub Personal Access Token"
+        else
+          echo "⚠️  Password does not appear to be a Docker Hub Personal Access Token"
+          echo "Expected format: dckr_pat_..."
+        fi
+        
+        # Test basic connectivity to Docker Hub
+        echo "🌐 Testing Docker Hub connectivity..."
+        curl -s https://registry-1.docker.io/v2/ || echo "❌ Cannot reach Docker Hub registry"
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
     - name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      run: |
+        echo "🔐 Attempting Docker Hub login..."
+        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+        if [ $? -eq 0 ]; then
+          echo "✅ Docker Hub login successful!"
+        else
+          echo "❌ Docker Hub login failed!"
+          echo "Trying alternative login method..."
+          docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+        fi
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push server Docker image
       uses: docker/build-push-action@v5
