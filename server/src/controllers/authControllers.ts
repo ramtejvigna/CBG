@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
-import { sendPasswordResetEmail } from '../lib/emailService.js';
+import { sendPasswordResetEmail, isEmailServiceAvailable } from '../lib/emailService.js';
 
 
 export const signup = async (req: Request, res: Response) => {
@@ -501,11 +501,18 @@ export const forgotPassword = async (req: Request, res: Response) => {
         });
 
         // Send password reset email
-        const emailSent = await sendPasswordResetEmail(email, resetToken);
-        
-        if (!emailSent) {
-            console.error('Failed to send password reset email to:', email);
-            // Don't fail the request even if email fails to send
+        try {
+            if (isEmailServiceAvailable()) {
+                const emailSent = await sendPasswordResetEmail(email, resetToken);
+                if (emailSent) {
+                    console.log('Password reset email sent successfully to:', email);
+                }
+            } else {
+                console.warn('Email service not available - password reset email not sent to:', email);
+            }
+        } catch (error) {
+            console.error('Failed to send password reset email to:', email, error);
+            // Don't fail the request even if email fails to send - user should still be able to reset via other means
         }
 
         return res.status(200).json({

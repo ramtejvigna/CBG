@@ -1,31 +1,60 @@
 import nodemailer from "nodemailer"
 import { EMAIL_USER, EMAIL_PASS } from "../constants.js";
 
-// Validate and narrow environment variables to strings at module init
-if (!EMAIL_USER || !EMAIL_PASS) {
-    throw new Error("Missing EMAIL_USER or EMAIL_PASS environment variables for email service");
-}
-const EMAIL_USER_STR: string = EMAIL_USER;
-const EMAIL_PASS_STR: string = EMAIL_PASS;
+// Create a lazy-initialized transporter
+let transporter: nodemailer.Transporter | null = null;
+let emailServiceAvailable = false;
 
-const transporter = nodemailer.createTransport({
-    // Gmail configuration
-    service: 'gmail',
-    auth: {
-        user: EMAIL_USER_STR,
-        pass: EMAIL_PASS_STR 
+const getTransporter = (): nodemailer.Transporter => {
+    if (!transporter) {
+        // Validate environment variables when first accessing transporter
+        if (!EMAIL_USER || !EMAIL_PASS) {
+            emailServiceAvailable = false;
+            console.warn("Warning: EMAIL_USER or EMAIL_PASS environment variables not set. Email functionality will be disabled.");
+            throw new Error("Email service not configured - missing EMAIL_USER or EMAIL_PASS environment variables");
+        }
+        
+        emailServiceAvailable = true;
+        const EMAIL_USER_STR: string = EMAIL_USER;
+        const EMAIL_PASS_STR: string = EMAIL_PASS;
+
+        transporter = nodemailer.createTransport({
+            // Gmail configuration
+            service: 'gmail',
+            auth: {
+                user: EMAIL_USER_STR,
+                pass: EMAIL_PASS_STR 
+            }
+        });
     }
-});
+    return transporter;
+};
+
+// Export a function to check if email service is available
+export const isEmailServiceAvailable = (): boolean => {
+    try {
+        return !!(EMAIL_USER && EMAIL_PASS);
+    } catch {
+        return false;
+    }
+};
 
 export const sendPasswordResetEmail = async (
     email: string,
     verificationLink: string
 ): Promise<nodemailer.SentMessageInfo> => {
     try {
+        const emailTransporter = getTransporter();
+        const emailUser = EMAIL_USER;
+        
+        if (!emailUser) {
+            throw new Error("EMAIL_USER not configured");
+        }
+        
         const mailOptions = {
             from: {
                 name: 'SRKR TNP',
-                address: EMAIL_USER_STR
+                address: emailUser
             },
             to: email,
             subject: 'Complete Your Profile - Verification Required',
@@ -71,7 +100,7 @@ export const sendPasswordResetEmail = async (
             `
         };
 
-        const result = await transporter.sendMail(mailOptions);
+        const result = await emailTransporter.sendMail(mailOptions);
         console.log('Verification email sent:', result.messageId);
         return result;
 
