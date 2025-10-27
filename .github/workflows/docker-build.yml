@@ -20,20 +20,26 @@ jobs:
 
     - name: Debug secrets availability
       run: |
-        echo "Checking if secrets are available..."
+        echo "🔍 Checking if ENVIRONMENT secrets are available..."
+        echo "Environment: production"
         if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
-          echo "ERROR: DOCKER_USERNAME secret is not set"
+          echo "❌ ERROR: DOCKER_USERNAME environment secret is not set"
+          echo "📝 Please ensure DOCKER_USERNAME is added to Environment 'production' secrets"
+          echo "🔗 Go to: Repository Settings > Environments > production > Environment secrets"
           exit 1
         else
-          echo "✅ DOCKER_USERNAME secret is available"
+          echo "✅ DOCKER_USERNAME environment secret is available"
         fi
         
         if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
-          echo "ERROR: DOCKER_PASSWORD secret is not set"
+          echo "❌ ERROR: DOCKER_PASSWORD environment secret is not set"
+          echo "📝 Please ensure DOCKER_PASSWORD is added to Environment 'production' secrets"
+          echo "🔗 Go to: Repository Settings > Environments > production > Environment secrets"
           exit 1
         else
-          echo "✅ DOCKER_PASSWORD secret is available"
+          echo "✅ DOCKER_PASSWORD environment secret is available"
         fi
+        echo "🎉 All environment secrets are properly configured!"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
