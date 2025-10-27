@@ -1,18 +1,16 @@
-FROM node:18-alpine AS base
+FROM node:18-alpine AS builder
 
-# Install dependencies for Prisma and Docker client
+# Install dependencies for Prisma
 RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package files and install ALL dependencies (including dev dependencies for TypeScript)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
-# Copy prisma schema
+# Copy prisma schema and generate client
 COPY prisma ./prisma/
-
-# Generate Prisma client specifically for Alpine
 RUN npx prisma generate
 
 # Copy source files
@@ -21,6 +19,25 @@ COPY tsconfig.json ./
 
 # Build TypeScript code
 RUN npm run build
+
+# Production stage
+FROM node:18-alpine AS production
+
+# Install dependencies for runtime
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+# Copy package files and install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy prisma schema and generate client for production
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy built application from builder stage
+COPY --from=builder /app/build ./build
 
 # Create temp directory for code execution
 RUN mkdir -p tmp
