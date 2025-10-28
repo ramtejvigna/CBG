@@ -49,7 +49,7 @@ export const AuthRouter = ({ children }: AuthRouterProps) => {
           if (user.role === "USER") {
             router.push('/');
           } else if (user.role === "ADMIN") {
-            router.push('/admin');
+            router.push('/adminYmAF8aMHrK');
           }
         }
       }

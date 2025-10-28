@@ -27,7 +27,7 @@ interface AdminLoginFormProps {
 
 const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ 
     onSuccess, 
-    redirectUrl = '/admin',
+    redirectUrl = '/adminYmAF8aMHrK',
     showBackToSite = true 
 }) => {
     const router = useRouter();
