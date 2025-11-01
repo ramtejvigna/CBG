@@ -83,20 +83,29 @@ export const globalSearch = async (req: Request, res: Response) => {
             }
         });
 
-        // Search users (warriors)
+        // Search users (warriors) excluding admins
         const users = await prisma.user.findMany({
             where: {
-                OR: [
+                AND: [
                     {
-                        username: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
-                        }
+                        OR: [
+                            {
+                                username: {
+                                    contains: searchTerm,
+                                    mode: 'insensitive'
+                                }
+                            },
+                            {
+                                name: {
+                                    contains: searchTerm,
+                                    mode: 'insensitive'
+                                }
+                            }
+                        ]
                     },
                     {
-                        name: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
+                        role: {
+                            not: 'ADMIN'
                         }
                     }
                 ]
