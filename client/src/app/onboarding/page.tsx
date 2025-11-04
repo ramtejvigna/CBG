@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Globe, User, Zap } from 'lucide-react';
+import { getSessionToken } from '@/lib/auth';
 
 export default function OnboardingPage() {
     const router = useRouter();
@@ -49,9 +50,13 @@ export default function OnboardingPage() {
                 throw new Error('No user session found');
             }
 
+            const token = getSessionToken();
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/complete-onboarding`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     userId: session.user.id,
                     username: formData.username,
