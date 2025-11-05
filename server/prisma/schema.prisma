@@ -15,6 +15,7 @@ model User {
   name                  String?
   username              String               @unique
   image                 String?
+  needsOnboarding       Boolean              @default(false)
   emailVerified         DateTime?
   githubConnected       Boolean              @default(false)
   githubUsername        String?

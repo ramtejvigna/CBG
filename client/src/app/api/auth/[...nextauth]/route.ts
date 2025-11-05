@@ -174,7 +174,8 @@ const handler = NextAuth({
               console.log('SignIn callback - No sessionToken received from backend');
             }
             
-          } else {
+          }
+           else {
             console.log('SignIn callback - Backend response missing user data or sessionToken');
           }
 

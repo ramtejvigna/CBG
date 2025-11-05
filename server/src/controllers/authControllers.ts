@@ -197,8 +197,6 @@ export const googleAuth = async (req: Request, res: Response) => {
             include: { userProfile: true, accounts: true }
         });
 
-        let needsOnboarding = false;
-
         if (!user) {
             // Generate a temporary username that indicates onboarding is needed
             const baseUsername = name ? name.toLowerCase().replace(/\s+/g, '') : 'user';
@@ -211,6 +209,7 @@ export const googleAuth = async (req: Request, res: Response) => {
                     email,
                     name,
                     image,
+                    needsOnboarding: true,
                     username: tempUsername, // Temporary username
                     emailVerified: new Date(),
                     userProfile: {
@@ -236,20 +235,7 @@ export const googleAuth = async (req: Request, res: Response) => {
                     providerAccountId: googleId,
                 }
             });
-
-            needsOnboarding = true;
         } else {
-            // Update existing user
-            user = await prisma.user.update({
-                where: { id: user.id },
-                data: {
-                    name,
-                    image,
-                    emailVerified: new Date(),
-                },
-                include: { userProfile: true, accounts: true }
-            });
-
             // Ensure account connection exists
             const existingAccount = await prisma.account.findFirst({
                 where: {
@@ -268,9 +254,6 @@ export const googleAuth = async (req: Request, res: Response) => {
                     }
                 });
             }
-
-            // Check if user needs onboarding (temporary username or incomplete profile)
-            needsOnboarding = user.username.startsWith('temp_') || !user.username || user.username.length < 3;
         }
 
         // Create session for Google auth
@@ -298,8 +281,8 @@ export const googleAuth = async (req: Request, res: Response) => {
                 hasImage: !!user.image
             },
             sessionToken,
-            needsOnboarding,
-            message: needsOnboarding ? 'Please complete your profile setup' : 'Authentication successful'
+            needsOnboarding: user.needsOnboarding,
+            message: user.needsOnboarding ? 'Please complete your profile setup' : 'Authentication successful'
         });
 
     } catch (error) {
@@ -316,23 +299,6 @@ export const completeOnboarding = async (req: Request, res: Response) => {
     try {
         const { userId, username, preferredLanguage } = req.body;
 
-        // Enhanced validation
-        if (!userId || !username) {
-            return res.status(400).json({
-                success: false,
-                message: 'User ID and username are required'
-            });
-        }
-
-        // Validate username format
-        const usernameRegex = /^[a-zA-Z0-9][a-zA-Z0-9_-]{2,29}$/;
-        if (!usernameRegex.test(username)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Username must be 3-30 characters long and can only contain letters, numbers, underscores, and hyphens'
-            });
-        }
-
         // Check if user exists
         const user = await prisma.user.findUnique({
             where: { id: userId }
@@ -345,26 +311,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             });
         }
 
-        // Check if username is already taken
-        const existingUser = await prisma.user.findFirst({
-            where: {
-                username,
-                NOT: { id: userId }
-            }
-        });
-
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                message: 'Username already taken'
-            });
-        }
-
         // Update user profile
         const updatedUser = await prisma.user.update({
             where: { id: userId },
             data: {
                 username,
+                needsOnboarding: false,
                 userProfile: {
                     update: {
                         preferredLanguage: preferredLanguage?.toLowerCase() || 'javascript'
