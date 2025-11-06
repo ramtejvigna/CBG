@@ -4,6 +4,22 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
 import { sendPasswordResetEmail, isEmailServiceAvailable } from '../lib/emailService.js';
 
+// Helper function to check for existing valid session
+const getValidSession = async (userId: string) => {
+    const existingSession = await prisma.session.findFirst({
+        where: {
+            userId,
+            expires: {
+                gt: new Date() // Session expires after current date
+            }
+        },
+        orderBy: {
+            expires: 'desc' // Get the session with the latest expiry
+        }
+    });
+    return existingSession;
+};
+
 
 export const signup = async (req: Request, res: Response) => {
     try {
@@ -72,18 +88,26 @@ export const signup = async (req: Request, res: Response) => {
         // Remove large image data from signup response to reduce payload size
         const { image, ...userWithoutImage } = userWithoutPassword;
 
-        // Create session
-        const sessionToken = randomBytes(32).toString('hex');
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+        // Check for existing valid session
+        let sessionToken: string;
+        const existingSession = await getValidSession(user.id);
+        
+        if (existingSession) {
+            sessionToken = existingSession.sessionToken;
+        } else {
+            // Create new session
+            sessionToken = randomBytes(32).toString('hex');
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-        await prisma.session.create({
-            data: {
-                sessionToken,
-                userId: user.id,
-                expires: expiresAt,
-            }
-        });
+            await prisma.session.create({
+                data: {
+                    sessionToken,
+                    userId: user.id,
+                    expires: expiresAt,
+                }
+            });
+        }
 
         res.status(201).json({
             success: true,
@@ -148,18 +172,26 @@ export const login = async (req: Request, res: Response) => {
         // Remove large image data from login response to reduce payload size
         const { image, ...userWithoutImage } = userWithoutPassword;
 
-        // Create session
-        const sessionToken = randomBytes(32).toString('hex');
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+        // Check for existing valid session
+        let sessionToken: string;
+        const existingSession = await getValidSession(user.id);
+        
+        if (existingSession) {
+            sessionToken = existingSession.sessionToken;
+        } else {
+            // Create new session
+            sessionToken = randomBytes(32).toString('hex');
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-        await prisma.session.create({
-            data: {
-                sessionToken,
-                userId: user.id,
-                expires: expiresAt,
-            }
-        });
+            await prisma.session.create({
+                data: {
+                    sessionToken,
+                    userId: user.id,
+                    expires: expiresAt,
+                }
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -256,18 +288,26 @@ export const googleAuth = async (req: Request, res: Response) => {
             }
         }
 
-        // Create session for Google auth
-        const sessionToken = randomBytes(32).toString('hex');
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+        // Check for existing valid session
+        let sessionToken: string;
+        const existingSession = await getValidSession(user.id);
+        
+        if (existingSession) {
+            sessionToken = existingSession.sessionToken;
+        } else {
+            // Create new session for Google auth
+            sessionToken = randomBytes(32).toString('hex');
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-        await prisma.session.create({
-            data: {
-                sessionToken,
-                userId: user.id,
-                expires: expiresAt,
-            }
-        });
+            await prisma.session.create({
+                data: {
+                    sessionToken,
+                    userId: user.id,
+                    expires: expiresAt,
+                }
+            });
+        }
 
         // Remove sensitive data from response
         const { password, ...userWithoutPassword } = user;
