@@ -316,7 +316,7 @@ const ChallengePage = () => {
         setActiveConsoleTab("result")
 
         try {
-            const result = await executeCode(code, selectedLanguage, challenge.id, true, undefined, contestId || undefined);
+            const result = await executeCode(code, selectedLanguage, challenge.id, true, undefined, session.user?.id, contestId || undefined);
 
             if (result.success) {
                 setTestResults(result.testResults || []);

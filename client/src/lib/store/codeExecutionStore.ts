@@ -55,6 +55,7 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
         challengeId: string,
         isSubmission: boolean = false,
         testCaseId?: string,
+        userId?: string,
         contestId?: string
       ): Promise<ExecutionResult> => {
         const { setIsExecuting, setError, setLastResult } = get()
@@ -64,18 +65,6 @@ export const useCodeExecutionStore = create<CodeExecutionState>()(
 
         try {
           const token = getSessionToken()
-          let userId = null
-
-          // Get user ID from token if available for submissions
-          if (token && isSubmission) {
-            try {
-              const payload = JSON.parse(atob(token.split('.')[1]))
-              console.log(payload.userId)
-              userId = payload.userId
-            } catch {
-              console.warn('Could not extract user ID from token')
-            }
-          }
 
           const requestBody = {
             code,
