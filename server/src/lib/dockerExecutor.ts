@@ -95,8 +95,13 @@ const TMP_DIR = process.env.DOCKER_CONTAINER == 'true' ? '/app/tmp' : path.join(
 async function ensureTmpDir() {
     try {
         await fs.mkdir(TMP_DIR, { recursive: true });
+        // Ensure the directory has the correct permissions
+        await fs.chmod(TMP_DIR, 0o777);
     } catch (error) {
         console.error('Error creating tmp directory:', error);
+        if (error instanceof Error && 'code' in error && error.code === 'EACCES') {
+            throw new Error(`Permission denied: Cannot create or access directory '${TMP_DIR}'. Please ensure you have write permissions to this directory or run the server with appropriate privileges.`);
+        }
         throw error;
     }
 }

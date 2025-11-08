@@ -22,6 +22,9 @@ services:
       # Mount Docker socket to allow container to use host's Docker
       # This works for both Windows and Linux
       - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # Add the container to the docker group
+      - "${DOCKER_GROUP_ID:-999}"
     depends_on:
       - code-executor-builder
     restart: unless-stopped

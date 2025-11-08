@@ -23,8 +23,11 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine AS production
 
-# Install dependencies for runtime
-RUN apk add --no-cache openssl
+# Install dependencies for runtime including Docker CLI
+RUN apk add --no-cache \
+    openssl \
+    docker \
+    docker-cli-compose
 
 WORKDIR /app
 
