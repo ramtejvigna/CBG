@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { useAuthStore, User } from '../lib/store/authStore';
+import { useAuthStore, User, clearNextAuthStorageAndCookies } from '../lib/store/authStore';
 
 // Extend the session type to include sessionToken
 declare module "next-auth" {
@@ -81,9 +81,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 } else {
                     console.log('No sessionToken found in NextAuth session');
                 }
-            } else {
-                // No NextAuth session, try custom auth check
-                await checkAuth();
+            } else if (status === 'unauthenticated') {
+                // NextAuth confirms no session exists
+                // Check if we have a custom session token, otherwise clear user data
+                const { getSessionToken } = await import('../lib/auth');
+                const sessionToken = getSessionToken();
+                
+                if (sessionToken) {
+                    // We have a custom session token, try to authenticate with it
+                    await checkAuth();
+                } else {
+                    // No session token either, ensure user is cleared
+                    const { setUser } = useAuthStore.getState();
+                    setUser(null);
+                }
             }
         };
 
@@ -147,11 +158,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const logout = async () => {
         try {
+            console.log('Starting logout process...');
+            
+            // First clear our custom auth store
             await storeLogout();
-            await signOut({ redirect: false });
+            
+            // Clear NextAuth storage and cookies
+            console.log('Clearing NextAuth storage and cookies...');
+            clearNextAuthStorageAndCookies();
+            
+            // Then call NextAuth signOut to clear the NextAuth session
+            console.log('Calling NextAuth signOut...');
+            await signOut({ 
+                redirect: false,
+                callbackUrl: '/login'
+            });
+            
+            console.log('Logout completed, redirecting to login');
             router.push('/login');
         } catch (err) {
             console.error('Logout failed:', err);
+            // Even if there's an error, try to redirect to login
+            router.push('/login');
         }
     };
 

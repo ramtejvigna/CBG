@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Grip, LogIn, UserPlus, LogOut, Moon, Sun } from 'lucide-react';
 import GridModel from './GridModel';
-import { useAuthStore } from '@/lib/store/authStore';
+import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import Loader from '../Loader';
@@ -47,7 +47,7 @@ const NavBar = () => {
     const searchContainerRef = useRef<HTMLDivElement | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-    const { user, logout, loading } = useAuthStore();
+    const { user, logout, loading } = useAuth();
 
     const handleSearch = useCallback(async (query: string) => {
         if (!query.trim()) {

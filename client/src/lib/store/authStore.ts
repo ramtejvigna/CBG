@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useProfileStore } from './profileStore'; // Import the profile store
+import { useCodeExecutionStore } from './codeExecutionStore'; // Import the code execution store
 import { getSessionToken, setSessionToken, removeSessionToken, createAuthHeaders } from '../auth';
 
 export interface User {
@@ -51,7 +52,93 @@ interface AuthState {
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
     updateUserStats: (stats: { points?: number; level?: number }) => Promise<void>;
+    clearAllStorages: () => void;
 }
+
+// Helper function to clear NextAuth-specific storage and cookies
+const clearNextAuthStorage = () => {
+    if (typeof window === 'undefined') return; // Skip on server-side
+    
+    try {
+        // Clear NextAuth session tokens from localStorage
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith('next-auth.')) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => {
+            localStorage.removeItem(key);
+        });
+        
+        // Clear NextAuth session tokens from sessionStorage
+        const sessionKeysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key?.startsWith('next-auth.')) {
+                sessionKeysToRemove.push(key);
+            }
+        }
+        sessionKeysToRemove.forEach(key => {
+            sessionStorage.removeItem(key);
+        });
+        
+        // Clear NextAuth cookies
+        const cookiesToClear = [
+            'next-auth.session-token',
+            'next-auth.csrf-token',
+            'next-auth.callback-url',
+            '__Secure-next-auth.session-token',
+            '__Host-next-auth.csrf-token'
+        ];
+        
+        cookiesToClear.forEach(cookieName => {
+            // Clear for current domain
+            document.cookie = `${cookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+            // Clear for current domain with secure flag
+            document.cookie = `${cookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Secure;`;
+            // Clear for subdomain if applicable
+            if (window.location.hostname.includes('.')) {
+                document.cookie = `${cookieName}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Domain=.${window.location.hostname.split('.').slice(-2).join('.')};`;
+            }
+        });
+    } catch (error) {
+        console.error('Error clearing NextAuth storage:', error);
+    }
+};
+
+// Helper function to clear all user-specific storages
+const clearUserStorages = () => {
+    // Clear profile storage
+    const profileStore = useProfileStore.getState();
+    if (profileStore && profileStore.clearProfile) {
+        profileStore.clearProfile();
+    }
+    
+    // Clear code execution storage
+    const codeExecutionStore = useCodeExecutionStore.getState();
+    if (codeExecutionStore && codeExecutionStore.clearResult) {
+        codeExecutionStore.clearResult();
+    }
+    
+    // Clear localStorage for these stores manually as well to ensure complete cleanup
+    try {
+        localStorage.removeItem('profile-storage');
+        localStorage.removeItem('code-execution-storage');
+        // Note: We don't clear 'auth-storage' here as it's handled by zustand when we set user to null
+        // Note: We don't clear 'languages-storage', 'contests-storage', or 'challenges-storage' as they contain 
+        // general app data that can be reused across different users
+    } catch (error) {
+        console.error('Error clearing localStorage:', error);
+    }
+    
+    // Also clear NextAuth storage
+    clearNextAuthStorage();
+};
+
+// Export the NextAuth clearing function for use in other places
+export const clearNextAuthStorageAndCookies = clearNextAuthStorage;
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -104,11 +191,19 @@ export const useAuthStore = create<AuthState>()(
                             }
                         } else {
                             removeSessionToken();
+                            clearUserStorages();
+                            set({ user: null });
                         }
+                    } else {
+                        // If no session token is present, clear all user-specific storages
+                        clearUserStorages();
+                        set({ user: null });
                     }
                 } catch (err) {
                     console.error('Auth check failed:', err);
                     removeSessionToken();
+                    clearUserStorages();
+                    set({ user: null });
                 } finally {
                     set({ loading: false });
                 }
@@ -196,6 +291,7 @@ export const useAuthStore = create<AuthState>()(
             logout: async () => {
                 set({ loading: true });
                 try {
+                    console.log('Store logout: Starting logout process...');
                     const sessionToken = getSessionToken();
                     if (sessionToken) {
                         await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/logout`, {
@@ -207,9 +303,27 @@ export const useAuthStore = create<AuthState>()(
                         });
                     }
                     removeSessionToken();
+                    clearUserStorages();
                     set({ user: null });
+                    
+                    // Try to clear NextAuth session if signOut is available (client-side only)
+                    if (typeof window !== 'undefined') {
+                        try {
+                            // Dynamic import to avoid SSR issues
+                            const { signOut } = await import('next-auth/react');
+                            console.log('Store logout: Calling NextAuth signOut...');
+                            await signOut({ redirect: false });
+                        } catch (nextAuthError) {
+                            console.log('NextAuth signOut not available or failed:', nextAuthError);
+                            // This is okay, NextAuth might not be available in all contexts
+                        }
+                    }
                 } catch (err) {
                     console.error('Logout failed:', err);
+                    // Even if logout API fails, still clear storages and session
+                    removeSessionToken();
+                    clearUserStorages();
+                    set({ user: null });
                 } finally {
                     set({ loading: false });
                 }
@@ -240,6 +354,10 @@ export const useAuthStore = create<AuthState>()(
                 } catch (err) {
                     console.error('Failed to update user stats:', err);
                 }
+            },
+
+            clearAllStorages: () => {
+                clearUserStorages();
             },
         }),
         {
