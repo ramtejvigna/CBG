@@ -163,59 +163,70 @@ export const useChallengesStore = create<ChallengesState>()(
         const currentTime = Date.now();
         const state = get();
         
-        // Only refetch if data is stale or parameters have changed
-        if (
+        // Check if we should refetch based on cache or parameters
+        const shouldRefetch = 
           state.challenges.length === 0 ||
           currentTime - state.lastFetched > REFETCH_THRESHOLD ||
           page !== state.pagination.page ||
           limit !== state.pagination.limit ||
           category !== undefined ||
-          difficulty !== undefined
-        ) {
-          try {
+          difficulty !== undefined;
+
+        if (!shouldRefetch && state.challenges.length > 0) {
+          // Return cached data without loading state
+          return;
+        }
+
+        // Only show loading if we don't have cached data
+        const showLoading = state.challenges.length === 0;
+        
+        try {
+          if (showLoading) {
             set({ isLoading: true, error: null });
-            
-            // Build query parameters
-            const params = new URLSearchParams();
-            if (category && category !== 'all') {
-              params.append('category', category);
-            }
-            if (difficulty && difficulty !== 'all') {
-              params.append('difficulty', difficulty);
-            }
-            if (page) {
-              params.append('page', page.toString());
-            }
-            if (limit) {
-              params.append('limit', limit.toString());
-            }
-
-            const queryString = params.toString();
-            const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges${queryString ? '?' + queryString : ''}`;
-
-            const response = await fetch(url);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch challenges: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            set({
-              challenges: data,
-              pagination: {
-                total: data.length,
-                page,
-                limit,
-                totalPages: Math.ceil(data.length / limit),
-              },
-              isLoading: false,
-              lastFetched: currentTime,
-            });
-          } catch (error) {
-            set({
-              isLoading: false,
-              error: error instanceof Error ? error.message : 'An unknown error occurred',
-            });
+          } else {
+            set({ error: null }); // Clear errors but don't show loading for background refresh
           }
+            
+          // Build query parameters
+          const params = new URLSearchParams();
+          if (category && category !== 'all') {
+            params.append('category', category);
+          }
+          if (difficulty && difficulty !== 'all') {
+            params.append('difficulty', difficulty);
+          }
+          if (page) {
+            params.append('page', page.toString());
+          }
+          if (limit) {
+            params.append('limit', limit.toString());
+          }
+
+          const queryString = params.toString();
+          const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/challenges${queryString ? '?' + queryString : ''}`;
+
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch challenges: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          set({
+            challenges: data,
+            pagination: {
+              total: data.length,
+              page,
+              limit,
+              totalPages: Math.ceil(data.length / limit),
+            },
+            isLoading: false,
+            lastFetched: currentTime,
+          });
+        } catch (error) {
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'An unknown error occurred',
+          });
         }
       },
 

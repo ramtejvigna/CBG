@@ -21,7 +21,7 @@ export const useChallenge = (slug: string): UseChallengeReturn => {
         if (slug) {
             fetchChallenge(slug);
         }
-    }, [slug, fetchChallenge]);
+    }, [slug]); // Remove fetchChallenge from dependencies
 
     return {
         challenge: currentChallenge,

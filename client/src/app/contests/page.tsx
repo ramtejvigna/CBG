@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar, Clock, Users, Trophy, Star, ChevronRight, Zap, AlertCircle } from "lucide-react"
+import { Calendar, Clock, Users, Trophy, Star, ChevronRight, Zap, AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,84 +9,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/context/AuthContext"
-import { getSessionToken, createAuthHeaders } from '@/lib/auth'
 import { useRouter } from "next/navigation"
 import { generateSlug } from "@/lib/challengeUtils"
-
-interface Contest {
-    id: string
-    title: string
-    description: string
-    startsAt: string
-    endsAt: string
-    registrationEnd: string
-    status: "UPCOMING" | "REGISTRATION_OPEN" | "ONGOING" | "FINISHED"
-    points: number
-    maxParticipants: number | null
-    tags: string[]
-    _count: {
-        participants: number
-    }
-    participants?: Array<{
-        user: {
-            username: string
-            name: string
-            image: string | null
-        }
-    }>
-    challenges?: Array<{
-        challenge: {
-            title: string
-            difficulty: string
-            description: string
-        }
-    }>
-    isRegistered?: boolean
-}
+import { Contest } from "@/lib/store"
+import { useContests } from "@/hooks/useContests"
 
 const ContestsPage = () => {
-    const [contests, setContests] = useState<Contest[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState("upcoming")
     const [searchQuery, setSearchQuery] = useState("")
-    const [registering, setRegistering] = useState<string | null>(null)
-    const [registrationSuccess, setRegistrationSuccess] = useState<string | null>(null)
     
     const { user } = useAuth()
     const router = useRouter()
 
-    useEffect(() => {
-        const fetchContests = async () => {
-            try {
-                setLoading(true)
-                setError(null)
-                
-                // Get session token for authenticated requests
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json',
-                    ...createAuthHeaders()
-                }
-                
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests`, {
-                    headers
-                })
-                if (!response.ok) {
-                    throw new Error("Failed to fetch contests")
-                }
-                const data = await response.json()
-                
-                setContests(data)
-            } catch (err) {
-                setError(err instanceof Error ? err.message : "An error occurred")
-                console.error("Error fetching contests:", err)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        fetchContests()
-    }, [user])
+    // Use custom hook for contests management
+    const {
+        contests,
+        isLoading: loading,
+        error,
+        registering,
+        registrationSuccess,
+        lastFetched,
+        refreshContests,
+        handleRegistration,
+        getFilteredContests,
+        clearError
+    } = useContests()
 
     // const getDifficultyColor = (difficulty: string) => {
     //     switch (difficulty?.toLowerCase()) {
@@ -148,51 +95,11 @@ const ContestsPage = () => {
         //     return
         // }
 
-        try {
-            setRegistering(contestId)
-            setError(null)
-            setRegistrationSuccess(null)
-
-            const token = getSessionToken()
-            // if (!token) {
-            //     router.push('/login')
-            //     return
-            // }
-
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/contests/${contestId}/register`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            })
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Registration failed')
-            }
-
-            // Update the contest registration status in local state
-            setContests(prevContests => 
-                prevContests.map(contest => 
-                    contest.id === contestId 
-                        ? { ...contest, isRegistered: true, _count: { participants: contest._count.participants + 1 } }
-                        : contest
-                )
-            )
-
-            setRegistrationSuccess(contestId)
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => {
-                setRegistrationSuccess(null)
-            }, 3000)
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Registration failed')
-        } finally {
-            setRegistering(null)
+        // Use hook method for registration
+        const success = await handleRegistration(contestId)
+        if (!success) {
+            // Error handling is already done in the store
+            return
         }
     }
 
@@ -214,24 +121,11 @@ const ContestsPage = () => {
         }
     }
 
-    const filterContestsByStatus = (status: string) => {
-        return contests.filter((contest) => {
-            const matchesStatus =
-                status === "upcoming"
-                    ? ["UPCOMING", "REGISTRATION_OPEN"].includes(contest.status)
-                    : status === "live"
-                        ? contest.status === "ONGOING"
-                        : contest.status === "FINISHED"
-
-            const matchesSearch =
-                contest.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                contest.description.toLowerCase().includes(searchQuery.toLowerCase())
-
-            return matchesStatus && matchesSearch
-        })
-    }
-
-    const filteredContests = filterContestsByStatus(activeTab)
+    // Use hook methods for filtering
+    const filteredContests = getFilteredContests(
+        activeTab as 'upcoming' | 'live' | 'past',
+        searchQuery
+    )
 
     const ContestSkeleton = () => (
         <Card className="bg-slate-800 border-slate-700">
@@ -262,9 +156,21 @@ const ContestsPage = () => {
             <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">
                 {/* Header Section */}
                 <div className="mb-8 space-y-4">
-                    <div className="flex items-center gap-3">
-                        <Trophy className="w-8 h-8 text-orange-500" />
-                        <h1 className="text-3xl md:text-4xl font-bold text-white">Contests</h1>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Trophy className="w-8 h-8 text-orange-500" />
+                            <h1 className="text-3xl md:text-4xl font-bold text-white">Contests</h1>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => refreshContests()}
+                            disabled={loading}
+                            className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+                        >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </Button>
                     </div>
                     <p className="text-slate-400 text-lg">Compete with others, solve challenges, and climb the leaderboard</p>
                 </div>
@@ -280,11 +186,34 @@ const ContestsPage = () => {
                     />
                 </div>
 
+                {/* Loading indicator for background refresh */}
+                {loading && contests.length > 0 && (
+                    <div className="mb-4 flex items-center gap-2 text-sm text-slate-400">
+                        <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                        Refreshing contests...
+                    </div>
+                )}
+
+                {/* Cache info - show last updated time when data is available */}
+                {contests.length > 0 && !loading && lastFetched > 0 && (
+                    <div className="mb-4 text-xs text-slate-500">
+                        Last updated: {new Date(lastFetched).toLocaleTimeString()}
+                    </div>
+                )}
+
                 {/* Error Alert */}
                 {error && (
-                    <Alert className="mb-6 bg-red-500/10 border-red-500/30">
+                    <Alert className="mb-6 bg-red-500/10 border-red-500/30 relative">
                         <AlertCircle className="h-4 w-4 text-red-500" />
-                        <AlertDescription className="text-red-400">{error}</AlertDescription>
+                        <AlertDescription className="text-red-400 pr-8">{error}</AlertDescription>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearError}
+                            className="absolute top-2 right-2 h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                        >
+                            ×
+                        </Button>
                     </Alert>
                 )}
 
@@ -339,7 +268,7 @@ const ContestsPage = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {filteredContests.map((contest, index) => (
+                                {filteredContests.map((contest: Contest, index: number) => (
                                     <Card
                                         key={contest.id}
                                         className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:border-orange-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 cursor-pointer group flex flex-col h-full"
@@ -368,7 +297,7 @@ const ContestsPage = () => {
                                                                 ? "Completed"
                                                                 : "Upcoming"}
                                                 </Badge>
-                                                {contest.tags.slice(0, 2).map((tag) => (
+                                                {contest.tags.slice(0, 2).map((tag: string) => (
                                                     <Badge key={tag} variant="secondary" className="text-xs bg-slate-700 text-slate-300 capitalize">
                                                         {tag}
                                                     </Badge>
@@ -406,7 +335,7 @@ const ContestsPage = () => {
                                                             Top Performers
                                                         </p>
                                                         <div className="space-y-1">
-                                                            {contest.participants.slice(0, 3).map((participant, idx) => (
+                                                            {contest.participants.slice(0, 3).map((participant: any, idx: number) => (
                                                                 <div key={idx} className="flex items-center justify-between text-xs text-slate-400">
                                                                     <span className="flex items-center gap-2">
                                                                         <span className="text-yellow-500 font-bold">#{idx + 1}</span>

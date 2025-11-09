@@ -15,3 +15,6 @@ export { useLanguagesStore } from './languagesStore'
 export type { Language } from './languagesStore'
 
 export { useCodeExecutionStore } from './codeExecutionStore'
+
+export { useContestsStore } from './contestsStore'
+export type { Contest } from './contestsStore'

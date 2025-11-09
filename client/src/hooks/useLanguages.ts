@@ -19,7 +19,7 @@ export const useLanguages = (): UseLanguagesReturn => {
 
   useEffect(() => {
     fetchLanguages();
-  }, [fetchLanguages]);
+  }, []); // Remove fetchLanguages from dependencies
 
   return {
     languages,

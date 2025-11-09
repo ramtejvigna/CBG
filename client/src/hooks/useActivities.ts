@@ -71,7 +71,7 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
 
     const { user } = useAuthStore();
 
-    const fetchActivities = useCallback(async () => {
+    const fetchActivities = useCallback(async (params = currentParams) => {
         if (!user?.username) {
             setLoading(false);
             return;
@@ -82,7 +82,7 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
             setError(null);
 
             const queryParams = new URLSearchParams();
-            Object.entries(currentParams).forEach(([key, value]) => {
+            Object.entries(params).forEach(([key, value]) => {
                 if (value !== undefined && value !== null && value !== "" && value !== "all") {
                     queryParams.append(key, value.toString());
                 }
@@ -116,17 +116,17 @@ const useActivities = (params: UseActivitiesParams = {}): UseActivitiesResult =>
         } finally {
             setLoading(false);
         }
-    }, [currentParams, user?.username]);
+    }, [user?.username]); // Remove currentParams from dependencies
 
     useEffect(() => {
         if (user?.username) {
-            fetchActivities();
+            fetchActivities(currentParams);
         }
-    }, [fetchActivities, user?.username]);
+    }, [user?.username, currentParams]); // Pass currentParams directly
 
     const refetch = useCallback(async () => {
         await fetchActivities();
-    }, [fetchActivities]);
+    }, []); // Remove fetchActivities from dependencies
 
     const setPage = useCallback((page: number) => {
         setCurrentParams(prev => ({ ...prev, page }));

@@ -38,36 +38,50 @@ export const useLanguagesStore = create<LanguagesState>()(
         const currentTime = Date.now()
         const token = getSessionToken();
         
-        // Only refetch if data is stale or empty
-        if (languages.length === 0 || currentTime - lastFetched > REFETCH_THRESHOLD) {
-          try {
-            set({ loading: true, error: null })
+        // Check if we should refetch
+        const shouldRefetch = languages.length === 0 || currentTime - lastFetched > REFETCH_THRESHOLD;
+        
+        if (!shouldRefetch && languages.length > 0) {
+          // Return cached data without loading
+          return;
+        }
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/languages`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            })
-            
-            if (!response.ok) {
-              throw new Error('Failed to fetch languages')
-            }
-
-            const data = await response.json()
-            
-            if (data.success && data.languages) {
-              set({ 
-                languages: data.languages,
-                lastFetched: currentTime 
-              })
-            } else {
-              throw new Error('Invalid response format')
-            }
-          } catch (err) {
-            set({ error: err instanceof Error ? err.message : 'Failed to load languages' })
-          } finally {
-            set({ loading: false })
+        // Only show loading if we don't have cached data
+        const showLoading = languages.length === 0;
+        
+        try {
+          if (showLoading) {
+            set({ loading: true, error: null });
+          } else {
+            set({ error: null }); // Clear errors but don't show loading for background refresh
           }
+
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/languages`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch languages')
+          }
+
+          const data = await response.json()
+          
+          if (data.success && data.languages) {
+            set({ 
+              languages: data.languages,
+              lastFetched: currentTime,
+              loading: false
+            })
+          } else {
+            throw new Error('Invalid response format')
+          }
+        } catch (err) {
+          set({ 
+            error: err instanceof Error ? err.message : 'Failed to load languages',
+            loading: false 
+          })
         }
       },
 

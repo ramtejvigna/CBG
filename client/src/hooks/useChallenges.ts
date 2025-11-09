@@ -35,18 +35,12 @@ export const useChallenges = (options: UseChallengesOptions = {}): UseChallenges
     ])
 
     useEffect(() => {
-        const loadData = async () => {
-            await Promise.all([
-                fetchChallenges(stableOptions)
-            ]);
-        };
-        
-        loadData();
-    }, [stableOptions, fetchChallenges]);
+        fetchChallenges(stableOptions);
+    }, [stableOptions]); // Remove fetchChallenges from dependencies
 
     useEffect(() => {
         fetchCategories();
-    }, [fetchCategories])
+    }, []); // Remove fetchCategories from dependencies and run only once
 
     return {
         challenges,

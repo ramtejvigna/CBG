@@ -88,6 +88,14 @@ export const useProfileStore = create<ProfileState>()(
       setError: (error: string | null) => set({ error }),
 
       fetchUserProfileById: async (userId: string) => {
+        const state = get();
+        
+        // Check if we already have this user's data and it's not stale
+        if (state.userData?.id === userId && state.lastFetchedId === userId) {
+          // Return cached data without loading
+          return;
+        }
+        
         try {
           set({ loading: true, error: null, lastFetchedId: userId });
 
@@ -116,6 +124,14 @@ export const useProfileStore = create<ProfileState>()(
       },
 
       fetchUserProfileByUsername: async (username: string) => {
+        const state = get();
+        
+        // Check if we already have this user's data
+        if (state.userData?.username === username) {
+          // Return cached data without loading
+          return;
+        }
+        
         try {
           set({ loading: true, error: null });
 
