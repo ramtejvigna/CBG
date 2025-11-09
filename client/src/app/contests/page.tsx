@@ -342,7 +342,7 @@ const ContestsPage = () => {
                                 {filteredContests.map((contest, index) => (
                                     <Card
                                         key={contest.id}
-                                        className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:border-orange-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 cursor-pointer group"
+                                        className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:border-orange-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 cursor-pointer group flex flex-col h-full"
                                         style={{
                                             animation: `slideInUp 0.5s ease-out ${index * 0.1}s both`,
                                         }}
@@ -376,8 +376,8 @@ const ContestsPage = () => {
                                             </div>
                                         </CardHeader>
 
-                                        <CardContent className="pt-0">
-                                            <div className="space-y-4">
+                                        <CardContent className="pt-0 flex flex-col flex-1">
+                                            <div className="flex-1 space-y-4">
                                                 {/* Contest Stats Grid */}
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="flex items-center gap-2 p-2 rounded bg-slate-700/50">
@@ -417,49 +417,49 @@ const ContestsPage = () => {
                                                         </div>
                                                     </div>
                                                 )}
+                                            </div>
 
-                                                {/* Action Button */}
-                                                <div className="pt-4 border-t border-slate-700">
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => handleContestAction(contest)}
-                                                        disabled={registering === contest.id}
-                                                        className={`w-full font-semibold transition-all cursor-pointer ${
-                                                            contest.status === "ONGOING"
-                                                                ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+                                            {/* Action Button - Always at bottom */}
+                                            <div className="pt-4 border-t border-slate-700 mt-auto">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleContestAction(contest)}
+                                                    disabled={registering === contest.id}
+                                                    className={`w-full font-semibold transition-all cursor-pointer ${
+                                                        contest.status === "ONGOING"
+                                                            ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+                                                            : contest.status === "REGISTRATION_OPEN"
+                                                                ? contest.isRegistered
+                                                                    ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                                                                    : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                                                                : contest.status === "UPCOMING"
+                                                                    ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                                                                    : "bg-slate-700 hover:bg-slate-600 text-slate-300"
+                                                    }`}
+                                                >
+                                                    {registering === contest.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                            Registering...
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            {contest.status === "ONGOING"
+                                                                ? "Join Now"
                                                                 : contest.status === "REGISTRATION_OPEN"
                                                                     ? contest.isRegistered
-                                                                        ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                                                                        : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                                                                        ? "✓ Registered"
+                                                                        : user
+                                                                            ? "Register"
+                                                                            : "Login to Register"
                                                                     : contest.status === "UPCOMING"
-                                                                        ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                                                                        : "bg-slate-700 hover:bg-slate-600 text-slate-300"
-                                                        }`}
-                                                    >
-                                                        {registering === contest.id ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                Registering...
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                {contest.status === "ONGOING"
-                                                                    ? "Join Now"
-                                                                    : contest.status === "REGISTRATION_OPEN"
                                                                         ? contest.isRegistered
                                                                             ? "✓ Registered"
-                                                                            : user
-                                                                                ? "Register"
-                                                                                : "Login to Register"
-                                                                        : contest.status === "UPCOMING"
-                                                                            ? contest.isRegistered
-                                                                                ? "✓ Registered"
-                                                                                : "Coming Soon"
-                                                                            : "View Results"}
-                                                            </>
-                                                        )}
-                                                    </Button>
-                                                </div>
+                                                                            : "Coming Soon"
+                                                                        : "View Results"}
+                                                        </>
+                                                    )}
+                                                </Button>
                                             </div>
                                         </CardContent>
                                     </Card>
