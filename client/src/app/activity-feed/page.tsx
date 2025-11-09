@@ -7,21 +7,14 @@ import useActivities, { Activity } from "@/hooks/useActivities"
 import { ActivityListSkeleton } from "@/components/ActivitySkeleton"
 import { Code, Trophy, Star, Clock, CheckCircle, TrendingUp, Award, Target, Zap, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 const ActivityFeedPage = () => {
     const { theme } = useThemeStore()
-    const { user, loading: authLoading, checkAuth } = useAuthStore()
+    const { user, loading: authLoading } = useAuthStore()
     const [activeFilter, setActiveFilter] = useState("all")
     const [currentPage, setCurrentPage] = useState(1)
-    
-    // Check auth on mount if user is not loaded
-    useEffect(() => {
-        if (!user && !authLoading) {
-            checkAuth()
-        }
-    }, [user, authLoading, checkAuth])
     
     const { 
         activities, 
@@ -77,8 +70,6 @@ const ActivityFeedPage = () => {
         currentStreak: userProfile?.streakDays || 0,
         // Contest activities from activity statistics (activity-based count)
         contestsParticipated: statistics?.typeBreakdown?.CONTEST || 0,
-        // Badge activities from activity statistics (activity-based count)
-        achievements: statistics?.typeBreakdown?.BADGE || 0,
         // Rating calculated from user rank
         averageRating: userProfile?.rank ? Math.max(800, 2000 - userProfile.rank * 5) : 1200,
     }
@@ -160,8 +151,6 @@ const ActivityFeedPage = () => {
                     return `Challenge ${baseDescription.toLowerCase()}`;
                 case "CONTEST":
                     return `Contest ${baseDescription.toLowerCase()}`;
-                case "BADGE":
-                    return `Badge ${baseDescription.toLowerCase()}`;
                 case "DISCUSSION":
                     return `Discussion ${baseDescription.toLowerCase()}`;
                 default:
@@ -298,11 +287,6 @@ const ActivityFeedPage = () => {
                                 icon: <Trophy className="w-5 h-5 text-purple-500" />,
                             },
                             { 
-                                label: "Badge Activities", 
-                                value: stats.achievements.toLocaleString(), 
-                                icon: <Award className="w-5 h-5 text-orange-500" /> 
-                            },
-                            { 
                                 label: "Current Rating", 
                                 value: stats.averageRating.toLocaleString(), 
                                 icon: <TrendingUp className="w-5 h-5 text-red-500" /> 
@@ -409,11 +393,6 @@ const ActivityFeedPage = () => {
                                                     <Badge className={`${getResultColor(activity.result)} border text-xs`}>
                                                         {activity.result || "No result"}
                                                     </Badge>
-                                                    {(activity.points || 0) > 0 && (
-                                                        <Badge variant="secondary" className="text-xs">
-                                                            +{activity.points} pts
-                                                        </Badge>
-                                                    )}
                                                 </div>
                                             </div>
 
@@ -427,9 +406,6 @@ const ActivityFeedPage = () => {
                                                     </div>
 
                                                     <div className="flex items-center gap-4">
-                                                        <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                            Duration: {formatActivityTime(activity.time)}
-                                                        </span>
                                                         <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                                                             Type: {activity.type || "Unknown"}
                                                         </span>
@@ -463,8 +439,6 @@ const ActivityFeedPage = () => {
                                 <Code className="w-16 h-16 opacity-50" />
                             ) : activeFilter === "CONTEST" ? (
                                 <Trophy className="w-16 h-16 opacity-50" />
-                            ) : activeFilter === "BADGE" ? (
-                                <Award className="w-16 h-16 opacity-50" />
                             ) : (
                                 <Target className="w-16 h-16 opacity-50" />
                             )}

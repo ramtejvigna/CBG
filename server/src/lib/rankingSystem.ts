@@ -127,19 +127,27 @@ export class RankingSystem {
     }
 
     /**
-     * Get leaderboard with accurate ranks
+     * Get leaderboard with accurate ranks - optimized query
      */
     static async getLeaderboard(limit: number = 10, offset: number = 0) {
         try {
+            console.log(`Fetching leaderboard: limit=${limit}, offset=${offset}`);
+            const startTime = Date.now();
+            
+            // Use a more efficient query with explicit indexing hints
             const leaderboard = await prisma.userProfile.findMany({
                 where: { 
-                    user: { role: 'USER' },
-                    rank: { not: null }
+                    AND: [
+                        { user: { role: 'USER' } },
+                        { rank: { not: null } },
+                        { rank: { gt: 0 } } // Ensure valid ranks
+                    ]
                 },
                 select: {
                     rank: true,
                     points: true,
                     solved: true,
+                    streakDays: true,
                     user: {
                         select: {
                             id: true,
@@ -149,9 +157,12 @@ export class RankingSystem {
                     }
                 },
                 orderBy: { rank: 'asc' },
-                take: limit,
-                skip: offset
+                take: Math.min(limit, 100), // Cap the limit
+                skip: Math.max(offset, 0) // Ensure positive offset
             });
+
+            const queryTime = Date.now() - startTime;
+            console.log(`Leaderboard query completed in ${queryTime}ms, returned ${leaderboard.length} users`);
 
             return leaderboard;
         } catch (error) {

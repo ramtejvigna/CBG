@@ -347,7 +347,31 @@ export const getLeaderboard = async (req: Request, res: Response) => {
         const limitNum = Math.min(parseInt(limit as string), 100);
         const offsetNum = Math.max(parseInt(offset as string), 0);
         
+        // Cache key for leaderboard
+        const cacheKey = `leaderboard_${limitNum}_${offsetNum}`;
+        
+        // Check cache first (cache for 10 minutes since leaderboard changes slowly)
+        const cachedLeaderboard = cache.get(cacheKey);
+        if (cachedLeaderboard) {
+            return res.json(cachedLeaderboard);
+        }
+        
+        console.log(`Fetching leaderboard from database (limit: ${limitNum}, offset: ${offsetNum})`);
+        const startTime = Date.now();
+        
         const leaderboard = await getLeaderboardRanking(limitNum, offsetNum);
+        
+        const queryTime = Date.now() - startTime;
+        console.log(`Leaderboard query completed in ${queryTime}ms`);
+        
+        // Cache the leaderboard for 10 minutes
+        cache.setMedium(cacheKey, leaderboard);
+
+        // Set cache headers for client-side caching (5 minutes)
+        res.set({
+            'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+            'ETag': `"leaderboard-${limitNum}-${offsetNum}-${Date.now()}"`
+        });
 
         res.json(leaderboard);
     } catch (error) {

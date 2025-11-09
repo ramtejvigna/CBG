@@ -1,5 +1,6 @@
 import { type Request, type Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { cache } from '../lib/cache.js';
 
 export const getOverallUserActivity = async (req: Request, res: Response) => {
     try {
@@ -21,6 +22,18 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
         const limitNum = Math.min(50, Math.max(1, parseInt(limit as string))); // Max 50 items per page
         const skip = (pageNum - 1) * limitNum;
 
+        // Cache key for user activity
+        const cacheKey = `user_activity_overall_${userId}_${pageNum}_${limitNum}_${type}_${sortBy}_${sortOrder}`;
+        
+        // Check cache first (cache for 3 minutes)
+        const cachedActivity = cache.get(cacheKey);
+        if (cachedActivity) {
+            return res.json(cachedActivity);
+        }
+
+        console.log(`Fetching user activity from database for user ${userId}`);
+        const startTime = Date.now();
+
         // Build where clause
         const whereClause: any = { userId };
         if (type && type !== 'all') {
@@ -40,14 +53,10 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
                 select: {
                     id: true,
                     type: true,
+                    name: true,
+                    result: true,
                     points: true,
-                    createdAt: true,
-                    user: {
-                        select: {
-                            username: true,
-                            image: true
-                        }
-                    }
+                    createdAt: true
                 },
                 orderBy: {
                     [sortBy as string]: sortOrder
@@ -83,7 +92,10 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
         const hasNextPage = pageNum < totalPages;
         const hasPrevPage = pageNum > 1;
 
-        res.json({
+        const queryTime = Date.now() - startTime;
+        console.log(`User activity query completed in ${queryTime}ms`);
+
+        const activityData = {
             activities,
             pagination: {
                 currentPage: pageNum,
@@ -98,7 +110,12 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
                 typeBreakdown: stats,
                 totalPoints
             }
-        });
+        };
+
+        // Cache the activity data for 3 minutes
+        cache.setShort(cacheKey, activityData);
+
+        res.json(activityData);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error', error });
     }
