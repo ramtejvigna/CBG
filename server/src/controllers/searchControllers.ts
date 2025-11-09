@@ -15,112 +15,116 @@ export const globalSearch = async (req: Request, res: Response) => {
 
         const searchTerm = query.trim().toLowerCase();
 
-        // Search challenges
-        const challenges = await prisma.challenge.findMany({
-            where: {
-                OR: [
-                    {
-                        title: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
-                        }
-                    },
-                    {
-                        description: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
-                        }
-                    },
-                    {
-                        category: {
-                            name: {
+        // Run all searches in parallel for better performance
+        const [challenges, contests, users] = await Promise.all([
+            // Search challenges
+            prisma.challenge.findMany({
+                where: {
+                    OR: [
+                        {
+                            title: {
+                                contains: searchTerm,
+                                mode: 'insensitive'
+                            }
+                        },
+                        {
+                            description: {
                                 contains: searchTerm,
                                 mode: 'insensitive'
                             }
                         }
+                    ]
+                },
+                select: {
+                    id: true,
+                    title: true,
+                    difficulty: true,
+                    points: true,
+                    createdAt: true,
+                    category: {
+                        select: {
+                            name: true
+                        }
                     }
-                ]
-            },
-            include: {
-                category: {
-                    select: {
-                        name: true
-                    }
+                },
+                take: 5,
+                orderBy: {
+                    createdAt: 'desc'
                 }
-            },
-            take: 5,
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
-
-        // Search contests
-        const contests = await prisma.contest.findMany({
-            where: {
-                OR: [
-                    {
-                        title: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
-                        }
-                    },
-                    {
-                        description: {
-                            contains: searchTerm,
-                            mode: 'insensitive'
-                        }
-                    },
-                    {
-                        tags: {
-                            has: searchTerm
-                        }
-                    }
-                ]
-            },
-            take: 5,
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
-
-        // Search users (warriors) excluding admins
-        const users = await prisma.user.findMany({
-            where: {
-                AND: [
-                    {
-                        OR: [
-                            {
-                                username: {
-                                    contains: searchTerm,
-                                    mode: 'insensitive'
-                                }
-                            },
-                            {
-                                name: {
-                                    contains: searchTerm,
-                                    mode: 'insensitive'
-                                }
+            }),
+            
+            // Search contests
+            prisma.contest.findMany({
+                where: {
+                    OR: [
+                        {
+                            title: {
+                                contains: searchTerm,
+                                mode: 'insensitive'
                             }
-                        ]
-                    },
-                    {
-                        role: {
-                            not: 'ADMIN'
+                        },
+                        {
+                            description: {
+                                contains: searchTerm,
+                                mode: 'insensitive'
+                            }
                         }
-                    }
-                ]
-            },
-            select: {
-                id: true,
-                username: true,
-                name: true,
-                image: true
-            },
-            take: 5,
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
+                    ]
+                },
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    startsAt: true,
+                    endsAt: true,
+                    status: true,
+                    createdAt: true
+                },
+                take: 5,
+                orderBy: {
+                    createdAt: 'desc'
+                }
+            }),
+
+            // Search users (warriors) excluding admins
+            prisma.user.findMany({
+                where: {
+                    AND: [
+                        {
+                            OR: [
+                                {
+                                    username: {
+                                        contains: searchTerm,
+                                        mode: 'insensitive'
+                                    }
+                                },
+                                {
+                                    name: {
+                                        contains: searchTerm,
+                                        mode: 'insensitive'
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            role: {
+                                not: 'ADMIN'
+                            }
+                        }
+                    ]
+                },
+                select: {
+                    id: true,
+                    username: true,
+                    name: true,
+                    image: true
+                },
+                take: 5,
+                orderBy: {
+                    createdAt: 'desc'
+                }
+            })
+        ]);
 
         // Add hasImage field to users
         const usersWithImageFlag = users.map((user: any) => ({

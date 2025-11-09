@@ -15,6 +15,26 @@ export type CreateSubmissionInput = Omit<Submission, 'id' | 'createdAt' | 'statu
 export type CreateUserProfileInput = Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>;
 export type UpdateUserProfileInput = Partial<WithoutSystemFields<UserProfile>>;
 
+// Settings input types
+export interface UpdateNotificationSettingsInput {
+  contestAlerts?: boolean;
+  leaderboardUpdates?: boolean;
+  streakAlerts?: boolean;
+  emailNotifications?: boolean;
+  digestFrequency?: 'daily' | 'weekly' | 'monthly';
+}
+
+export interface UpdateSecuritySettingsInput {
+  twoFactorEnabled?: boolean;
+}
+
+export interface UpdateUserPreferencesInput {
+  theme?: 'light' | 'dark' | 'system';
+  language?: string;
+  codeEditor?: 'vs-dark' | 'vs-light' | 'hc-black' | 'hc-light';
+  timezone?: string;
+}
+
 // Response types
 export interface PaginatedResponse<T> {
   items: T[];

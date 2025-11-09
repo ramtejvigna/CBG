@@ -4,74 +4,58 @@ import { dockerExecutor } from '../lib/dockerExecutor.js';
 import { SubmissionStatus, ActivityType } from '@prisma/client';
 import { updateUserRank } from '../lib/rankingSystem.js';
 
-// Function to calculate and update user's streak
+// Optimized function to calculate user's streak using database aggregation
 const updateUserStreak = async (userId: string, tx: any) => {
     try {
         console.log(`Calculating streak for user ${userId}`);
         
-        // Get all successful submissions for this user, ordered by date
-        const successfulSubmissions = await tx.submission.findMany({
+        // Get unique submission dates using database aggregation - much faster
+        const submissionDates = await tx.submission.groupBy({
+            by: ['createdAt'],
             where: {
                 userId: userId,
                 status: SubmissionStatus.ACCEPTED
-            },
-            select: {
-                createdAt: true,
-                challengeId: true
             },
             orderBy: {
                 createdAt: 'desc'
             }
         });
 
-        if (successfulSubmissions.length === 0) {
+        if (submissionDates.length === 0) {
             console.log(`No successful submissions found for user ${userId}`);
             return 0;
         }
 
-        // Group submissions by date (ignoring time) - only keep unique dates
-        const submissionDates = new Set<string>();
-        
-        for (const submission of successfulSubmissions) {
-            const dateKey = submission.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD format
-            submissionDates.add(dateKey);
-        }
+        // Extract unique dates (YYYY-MM-DD format) more efficiently
+        const uniqueDates = new Set(
+            submissionDates.map((sub: any) => sub.createdAt.toISOString().split('T')[0])
+        );
+        const sortedDates = Array.from(uniqueDates).sort().reverse();
 
-        // Convert to sorted array (most recent first)
-        const sortedDates = Array.from(submissionDates).sort().reverse();
-
-        // Calculate current streak
-        let currentStreak = 0;
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0] || '';
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0] || '';
+        // Calculate current streak with optimized logic
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        // Check if user has a submission today or yesterday (streak can continue from yesterday)
-        let streakStartDate = todayStr;
-        if (todayStr && submissionDates.has(todayStr)) {
-            streakStartDate = todayStr;
-        } else if (yesterdayStr && submissionDates.has(yesterdayStr)) {
-            streakStartDate = yesterdayStr;
-        } else {
-            // No recent submission, streak is 0
+        // Determine streak start date
+        const streakStartDate = uniqueDates.has(today) ? today : 
+                              uniqueDates.has(yesterday) ? yesterday : null;
+        
+        if (!streakStartDate) {
             console.log(`No submission today or yesterday for user ${userId}, streak is 0`);
             return 0;
         }
         
-        // Count consecutive days backwards from the streak start date
+        // Count consecutive days using optimized approach
+        let currentStreak = 0;
         let checkDate = new Date(streakStartDate + 'T00:00:00.000Z');
         
         while (true) {
             const dateKey = checkDate.toISOString().split('T')[0];
             
-            if (dateKey && submissionDates.has(dateKey)) {
+            if (uniqueDates.has(dateKey)) {
                 currentStreak++;
-                // Move to previous day
                 checkDate.setDate(checkDate.getDate() - 1);
             } else {
-                // Streak is broken
                 break;
             }
         }
@@ -155,7 +139,7 @@ export const executeCode = async (req: Request, res: Response) => {
             });
         }
 
-        // Get challenge with test cases
+        // Get challenge with test cases and languages
         const challenge = await prisma.challenge.findUnique({
             where: { id: challengeId },
             include: {
@@ -171,9 +155,9 @@ export const executeCode = async (req: Request, res: Response) => {
             });
         }
 
-        // Find language
+        // Find language (optimized search)
         const challengeLanguage = challenge.languages.find(
-            lang => lang.name.toLowerCase() === language.toLowerCase()
+            (lang: any) => lang.name.toLowerCase() === language.toLowerCase()
         );
 
         if (!challengeLanguage) {
@@ -271,9 +255,9 @@ export const executeCode = async (req: Request, res: Response) => {
         } else {
             // For running code, test against specific test case or first visible one
             if (testCaseId) {
-                testCases = challenge.testCases.filter(tc => tc.id === testCaseId);
+                testCases = challenge.testCases.filter((tc: any) => tc.id === testCaseId);
             } else {
-                testCases = challenge.testCases.filter(tc => !tc.isHidden).slice(0, 1);
+                testCases = challenge.testCases.filter((tc: any) => !tc.isHidden).slice(0, 1);
             }
         }
 
@@ -284,8 +268,8 @@ export const executeCode = async (req: Request, res: Response) => {
             });
         }
 
-        // Execute code in Docker containers for each test case
-        const testResults = await Promise.all(testCases.map(async (testCase) => {
+        // Execute code in Docker containers for each test case (parallel execution)
+        const testResults = await Promise.all(testCases.map(async (testCase: any) => {
             try {
                 // Execute code in Docker container
                 const executionResult = await dockerExecutor.execute(
@@ -324,26 +308,26 @@ export const executeCode = async (req: Request, res: Response) => {
             }
         }));
 
-        // Calculate overall results
-        const passedTests = testResults.filter(result => result.passed).length;
+        // Calculate overall results (optimized calculations)
+        const passedTests = testResults.filter((result: any) => result.passed).length;
         const totalTests = testResults.length;
         const allPassed = passedTests === totalTests;
-        const avgRuntime = Math.round(testResults.reduce((sum, result) => sum + (result.runtime || 0), 0) / testResults.length);
-        const avgMemory = Math.round(testResults.reduce((sum, result) => sum + (result.memory || 0), 0) / testResults.length);
+        const avgRuntime = Math.round(testResults.reduce((sum: number, result: any) => sum + (result.runtime || 0), 0) / testResults.length);
+        const avgMemory = Math.round(testResults.reduce((sum: number, result: any) => sum + (result.memory || 0), 0) / testResults.length);
         
-        // Determine overall status
+        // Determine overall status (optimized logic)
         let overallStatus: SubmissionStatus = SubmissionStatus.ACCEPTED;
         
         if (!allPassed) {
-            const failedResults = testResults.filter(result => !result.passed);
-            // Get the most severe error status
-            if (failedResults.some(r => r.status === SubmissionStatus.COMPILATION_ERROR)) {
+            const failedResults = testResults.filter((result: any) => !result.passed);
+            // Get the most severe error status using priority-based checking
+            if (failedResults.some((r: any) => r.status === SubmissionStatus.COMPILATION_ERROR)) {
                 overallStatus = SubmissionStatus.COMPILATION_ERROR;
-            } else if (failedResults.some(r => r.status === SubmissionStatus.RUNTIME_ERROR)) {
+            } else if (failedResults.some((r: any) => r.status === SubmissionStatus.RUNTIME_ERROR)) {
                 overallStatus = SubmissionStatus.RUNTIME_ERROR;
-            } else if (failedResults.some(r => r.status === SubmissionStatus.MEMORY_LIMIT_EXCEEDED)) {
+            } else if (failedResults.some((r: any) => r.status === SubmissionStatus.MEMORY_LIMIT_EXCEEDED)) {
                 overallStatus = SubmissionStatus.MEMORY_LIMIT_EXCEEDED;
-            } else if (failedResults.some(r => r.status === SubmissionStatus.TIME_LIMIT_EXCEEDED)) {
+            } else if (failedResults.some((r: any) => r.status === SubmissionStatus.TIME_LIMIT_EXCEEDED)) {
                 overallStatus = SubmissionStatus.TIME_LIMIT_EXCEEDED;
             } else {
                 overallStatus = SubmissionStatus.WRONG_ANSWER;
@@ -483,10 +467,30 @@ export const executeCode = async (req: Request, res: Response) => {
                             });
                         }
                     } else {
-                        // Regular challenge submission (not contest)
+                        // Optimized regular challenge submission (not contest)
                         console.log(`Creating regular submission for user ${userId}`);
                         
-                        // Create the submission first
+                        // Parallel operations: Check previous submission + get user profile in parallel
+                        const [previousSuccessfulSubmission, currentProfile] = await Promise.all([
+                            // Check if user already solved this challenge
+                            overallStatus === SubmissionStatus.ACCEPTED ? 
+                                tx.submission.findFirst({
+                                    where: {
+                                        userId: userId,
+                                        challengeId: challengeId,
+                                        status: SubmissionStatus.ACCEPTED
+                                    },
+                                    select: { id: true }
+                                }) : Promise.resolve(null),
+                            // Get current profile for streak calculation
+                            overallStatus === SubmissionStatus.ACCEPTED ? 
+                                tx.userProfile.findUnique({
+                                    where: { userId: userId },
+                                    select: { streakDays: true }
+                                }) : Promise.resolve(null)
+                        ]);
+
+                        // Create the submission
                         const submission = await tx.submission.create({
                             data: {
                                 userId: userId,
@@ -502,123 +506,88 @@ export const executeCode = async (req: Request, res: Response) => {
 
                         console.log(`Submission created with ID: ${submission.id}`);
 
-                        // Handle points and activity based on submission status
+                        // Handle successful submissions
                         if (overallStatus === SubmissionStatus.ACCEPTED) {
-                            console.log(`Checking for previous successful submissions for user ${userId}, challenge ${challengeId}`);
+                            const oldStreak = currentProfile?.streakDays || 0;
+                            const isFirstSolution = !previousSuccessfulSubmission;
                             
-                            // Check if this is the user's first successful submission for this challenge
-                            const previousSuccessfulSubmission = await tx.submission.findFirst({
-                                where: {
-                                    userId: userId,
-                                    challengeId: challengeId,
-                                    status: SubmissionStatus.ACCEPTED,
-                                    id: { not: submission.id }
-                                }
-                            });
-
-                            // Only award points if this is the first successful submission for this challenge
-                            if (!previousSuccessfulSubmission) {
-                                console.log(`First successful submission - updating user profile for user ${userId}`);
+                            // Calculate current streak once
+                            const currentStreak = await updateUserStreak(userId, tx);
+                            
+                            if (isFirstSolution) {
+                                console.log(`First successful submission - awarding points to user ${userId}`);
                                 
-                                // Get current streak before update
-                                const currentProfile = await tx.userProfile.findUnique({
-                                    where: { userId: userId },
-                                    select: { streakDays: true }
-                                });
-                                const oldStreak = currentProfile?.streakDays || 0;
-                                
-                                // Calculate current streak (this will include the current successful submission)
-                                const currentStreak = await updateUserStreak(userId, tx);
-                                
-                                // Update user profile points, solved count, and streak
-                                const updatedProfile = await tx.userProfile.upsert({
-                                    where: { userId: userId },
-                                    update: {
-                                        points: {
-                                            increment: challenge.points
+                                // Parallel operations: Update profile + create activity + check milestones
+                                const [updatedProfile] = await Promise.all([
+                                    // Update user profile with points and streak
+                                    tx.userProfile.upsert({
+                                        where: { userId: userId },
+                                        update: {
+                                            points: { increment: challenge.points },
+                                            solved: { increment: 1 },
+                                            streakDays: currentStreak
                                         },
-                                        solved: {
-                                            increment: 1
-                                        },
-                                        streakDays: currentStreak
-                                    },
-                                    create: {
-                                        userId: userId,
-                                        rank: null,
-                                        bio: "No bio provided",
-                                        phone: null,
-                                        solved: 1,
-                                        preferredLanguage: "javascript",
-                                        level: 1,
-                                        points: challenge.points,
-                                        streakDays: currentStreak
-                                    }
-                                });
-
-                                // Check for streak milestones
-                                await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+                                        create: {
+                                            userId: userId,
+                                            rank: null,
+                                            bio: "No bio provided",
+                                            phone: null,
+                                            solved: 1,
+                                            preferredLanguage: "javascript",
+                                            level: 1,
+                                            points: challenge.points,
+                                            streakDays: currentStreak
+                                        }
+                                    }),
+                                    // Create activity in parallel
+                                    tx.activity.create({
+                                        data: {
+                                            userId: userId,
+                                            type: ActivityType.CHALLENGE,
+                                            name: challenge.title,
+                                            result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge (+${challenge.points} points)`,
+                                            points: challenge.points,
+                                            time: new Date().toLocaleTimeString()
+                                        }
+                                    }),
+                                    // Check streak milestones in parallel
+                                    checkStreakMilestones(userId, currentStreak, oldStreak, tx)
+                                ]);
 
                                 console.log(`User profile updated: ${updatedProfile.solved} solved, ${updatedProfile.points} total points, ${updatedProfile.streakDays} day streak`);
-
-                                // Create activity record for successful submission
-                                const activity = await tx.activity.create({
-                                    data: {
-                                        userId: userId,
-                                        type: ActivityType.CHALLENGE,
-                                        name: challenge.title,
-                                        result: `Successfully solved ${challenge.difficulty.toLowerCase()} challenge (+${challenge.points} points)`,
-                                        points: challenge.points,
-                                        time: new Date().toLocaleTimeString()
-                                    }
-                                });
-
-                                console.log(`Activity created with ID: ${activity.id}`);
                                 console.log(`Awarded ${challenge.points} points to user ${userId} for solving challenge ${challengeId}`);
                             } else {
-                                console.log(`User ${userId} already solved challenge ${challengeId} - updating streak and creating activity without points`);
+                                console.log(`User ${userId} already solved challenge ${challengeId} - updating streak only`);
                                 
-                                // Get current streak before update
-                                const currentProfile = await tx.userProfile.findUnique({
-                                    where: { userId: userId },
-                                    select: { streakDays: true }
-                                });
-                                const oldStreak = currentProfile?.streakDays || 0;
-                                
-                                // Calculate and update current streak even for re-solved challenges
-                                const currentStreak = await updateUserStreak(userId, tx);
-                                
-                                // Update streak in user profile (no points since already solved)
-                                await tx.userProfile.update({
-                                    where: { userId: userId },
-                                    data: {
-                                        streakDays: currentStreak
-                                    }
-                                });
-
-                                // Check for streak milestones
-                                await checkStreakMilestones(userId, currentStreak, oldStreak, tx);
+                                // Parallel operations for re-solved challenge
+                                await Promise.all([
+                                    // Update only streak
+                                    tx.userProfile.update({
+                                        where: { userId: userId },
+                                        data: { streakDays: currentStreak }
+                                    }),
+                                    // Create activity
+                                    tx.activity.create({
+                                        data: {
+                                            userId: userId,
+                                            type: ActivityType.CHALLENGE,
+                                            name: challenge.title,
+                                            result: `Re-solved ${challenge.difficulty.toLowerCase()} challenge (no additional points)`,
+                                            points: 0,
+                                            time: new Date().toLocaleTimeString()
+                                        }
+                                    }),
+                                    // Check streak milestones
+                                    checkStreakMilestones(userId, currentStreak, oldStreak, tx)
+                                ]);
 
                                 console.log(`Updated streak for user ${userId}: ${currentStreak} days`);
-                                
-                                // Create activity for successful submission but no points (already solved)
-                                const activity = await tx.activity.create({
-                                    data: {
-                                        userId: userId,
-                                        type: ActivityType.CHALLENGE,
-                                        name: challenge.title,
-                                        result: `Re-solved ${challenge.difficulty.toLowerCase()} challenge (no additional points)`,
-                                        points: 0,
-                                        time: new Date().toLocaleTimeString()
-                                    }
-                                });
-
-                                console.log(`Activity created with ID: ${activity.id} (no points awarded)`);
                             }
                         } else {
                             console.log(`Failed submission - creating activity for user ${userId}`);
                             
-                            // Create activity for failed submissions (no points awarded)
-                            const activity = await tx.activity.create({
+                            // Create activity for failed submission
+                            await tx.activity.create({
                                 data: {
                                     userId: userId,
                                     type: ActivityType.CHALLENGE,
@@ -629,7 +598,7 @@ export const executeCode = async (req: Request, res: Response) => {
                                 }
                             });
 
-                            console.log(`Activity created with ID: ${activity.id} for failed submission`);
+                            console.log(`Activity created for failed submission`);
                         }
                     }
                 }, {

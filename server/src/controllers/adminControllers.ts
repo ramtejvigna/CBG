@@ -819,65 +819,68 @@ export const getDashboardStats = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        // Get total counts
-        const totalUsers = await prisma.user.count();
-        const totalChallenges = await prisma.challenge.count();
-        const totalContests = await prisma.contest.count();
-        
-        // Get today's submissions
+        // Calculate date ranges
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        const todaySubmissions = await prisma.submission.count({
-            where: {
-                createdAt: {
-                    gte: today,
-                    lt: tomorrow
-                }
-            }
-        });
-
-        // Get growth stats (compared to last month)
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
         const lastMonth = new Date();
         lastMonth.setMonth(lastMonth.getMonth() - 1);
         
-        const lastMonthUsers = await prisma.user.count({
-            where: {
-                createdAt: {
-                    lt: lastMonth
+        // Run all queries in parallel for better performance
+        const [
+            totalUsers,
+            totalChallenges, 
+            totalContests,
+            todaySubmissions,
+            lastMonthUsers,
+            lastMonthChallenges,
+            lastMonthContests,
+            yesterdaySubmissions
+        ] = await Promise.all([
+            prisma.user.count(),
+            prisma.challenge.count(),
+            prisma.contest.count(),
+            prisma.submission.count({
+                where: {
+                    createdAt: {
+                        gte: today,
+                        lt: tomorrow
+                    }
                 }
-            }
-        });
-        
-        const lastMonthChallenges = await prisma.challenge.count({
-            where: {
-                createdAt: {
-                    lt: lastMonth
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: {
+                        lt: lastMonth
+                    }
                 }
-            }
-        });
-        
-        const lastMonthContests = await prisma.contest.count({
-            where: {
-                createdAt: {
-                    lt: lastMonth
+            }),
+            prisma.challenge.count({
+                where: {
+                    createdAt: {
+                        lt: lastMonth
+                    }
                 }
-            }
-        });
-
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        const yesterdaySubmissions = await prisma.submission.count({
-            where: {
-                createdAt: {
-                    gte: yesterday,
-                    lt: today
+            }),
+            prisma.contest.count({
+                where: {
+                    createdAt: {
+                        lt: lastMonth
+                    }
                 }
-            }
-        });
+            }),
+            prisma.submission.count({
+                where: {
+                    createdAt: {
+                        gte: yesterday,
+                        lt: today
+                    }
+                }
+            })
+        ]);
 
         // Calculate growth percentages
         const userGrowth = lastMonthUsers > 0 ? ((totalUsers - lastMonthUsers) / lastMonthUsers) * 100 : 0;

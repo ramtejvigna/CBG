@@ -27,46 +27,57 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
             whereClause.type = type;
         }
 
-        // Get total count for pagination
-        const totalCount = await prisma.activity.count({
-            where: whereClause
-        });
+        // Run queries in parallel for better performance
+        const [totalCount, activities, statsData] = await Promise.all([
+            // Get total count for pagination
+            prisma.activity.count({
+                where: whereClause
+            }),
 
-        // Get paginated activities
-        const activities = await prisma.activity.findMany({
-            where: whereClause,
-            include: {
-                user: {
-                    select: {
-                        username: true,
-                        image: true
+            // Get paginated activities
+            prisma.activity.findMany({
+                where: whereClause,
+                select: {
+                    id: true,
+                    type: true,
+                    points: true,
+                    createdAt: true,
+                    user: {
+                        select: {
+                            username: true,
+                            image: true
+                        }
                     }
+                },
+                orderBy: {
+                    [sortBy as string]: sortOrder
+                },
+                skip,
+                take: limitNum
+            }),
+
+            // Get statistics data (aggregated)
+            prisma.activity.groupBy({
+                by: ['type'],
+                where: { userId },
+                _count: {
+                    type: true
+                },
+                _sum: {
+                    points: true
                 }
-            },
-            orderBy: {
-                [sortBy as string]: sortOrder
-            },
-            skip,
-            take: limitNum
-        });
+            })
+        ]);
 
-        // Get overall statistics (not paginated)
-        const allActivities = await prisma.activity.findMany({
-            where: { userId },
-            select: {
-                type: true,
-                points: true
-            }
-        });
-
-        // Group activities by type for statistics
-        const stats = allActivities.reduce((acc, activity) => {
-            acc[activity.type] = (acc[activity.type] || 0) + 1;
+        // Process grouped statistics
+        const stats = statsData.reduce((acc: Record<string, number>, group: any) => {
+            acc[group.type] = group._count.type;
             return acc;
-        }, {} as Record<string, number>);
+        }, {});
 
-        // Calculate total points
-        const totalPoints = allActivities.reduce((sum, activity) => sum + activity.points, 0);
+        // Calculate total points from grouped data
+        const totalPoints = statsData.reduce((sum: number, group: any) => sum + (group._sum.points || 0), 0);
+        const totalActivities = statsData.reduce((sum: number, group: any) => sum + group._count.type, 0);
 
         const totalPages = Math.ceil(totalCount / limitNum);
         const hasNextPage = pageNum < totalPages;
@@ -83,7 +94,7 @@ export const getOverallUserActivity = async (req: Request, res: Response) => {
                 hasPrevPage
             },
             statistics: {
-                totalActivities: allActivities.length,
+                totalActivities,
                 typeBreakdown: stats,
                 totalPoints
             }

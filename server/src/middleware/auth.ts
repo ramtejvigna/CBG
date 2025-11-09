@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import prisma from '../lib/prisma.js';
 import type { User } from '../types/models.js';
+import { cache } from '../lib/cache.js';
 
 // Extend Express Request type to include user
 declare global {
@@ -19,15 +20,28 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        // Get session from database
-        const session = await prisma.session.findUnique({
-            where: { sessionToken: token },
-            include: {
-                user: true
+        // Check cache first for session (5 minute cache to reduce DB calls)
+        const cacheKey = `session_${token}`;
+        let session: any = cache.get(cacheKey);
+
+        if (!session) {
+            // Get session from database only if not cached
+            session = await prisma.session.findUnique({
+                where: { sessionToken: token },
+                include: {
+                    user: true
+                }
+            });
+
+            // Cache the session for 5 minutes if it exists and is valid
+            if (session && Date.now() <= new Date(session.expires).getTime()) {
+                cache.setShort(cacheKey, session);
             }
-        });
+        }
 
         if (!session || Date.now() > new Date(session.expires).getTime()) {
+            // Remove from cache if expired
+            cache.del(cacheKey);
             return res.status(401).json({ message: 'Session expired' });
         }
 
@@ -35,6 +49,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         req.user = session.user;
         next();
     } catch (error) {
+        console.error('Authentication error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
@@ -48,13 +63,24 @@ export const optionalAuthenticate = async (req: Request, res: Response, next: Ne
             return next();
         }
 
-        // Get session from database
-        const session = await prisma.session.findUnique({
-            where: { sessionToken: token },
-            include: {
-                user: true
+        // Check cache first for session
+        const cacheKey = `session_${token}`;
+        let session: any = cache.get(cacheKey);
+
+        if (!session) {
+            // Get session from database only if not cached
+            session = await prisma.session.findUnique({
+                where: { sessionToken: token },
+                include: {
+                    user: true
+                }
+            });
+
+            // Cache the session for 5 minutes if it exists and is valid
+            if (session && Date.now() <= new Date(session.expires).getTime()) {
+                cache.setShort(cacheKey, session);
             }
-        });
+        }
 
         if (session && Date.now() <= new Date(session.expires).getTime()) {
             // Attach user to request if session is valid

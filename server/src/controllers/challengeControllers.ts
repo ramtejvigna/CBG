@@ -69,20 +69,21 @@ export const getChallengeBySlug = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        // Get proper likes and dislikes count
-        const likesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId: bestMatch.id,
-                isLike: true
-            }
-        });
-
-        const dislikesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId: bestMatch.id,
-                isLike: false
-            }
-        });
+        // Get likes and dislikes count in parallel
+        const [likesCount, dislikesCount] = await Promise.all([
+            prisma.challengeLike.count({
+                where: {
+                    challengeId: bestMatch.id,
+                    isLike: true
+                }
+            }),
+            prisma.challengeLike.count({
+                where: {
+                    challengeId: bestMatch.id,
+                    isLike: false
+                }
+            })
+        ]);
 
         // Add the proper counts to the response
         const responseData = {
@@ -143,20 +144,21 @@ export const getChallengeById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        // Get proper likes and dislikes count
-        const likesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId: challenge.id,
-                isLike: true
-            }
-        });
-
-        const dislikesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId: challenge.id,
-                isLike: false
-            }
-        });
+        // Get likes and dislikes count in parallel
+        const [likesCount, dislikesCount] = await Promise.all([
+            prisma.challengeLike.count({
+                where: {
+                    challengeId: challenge.id,
+                    isLike: true
+                }
+            }),
+            prisma.challengeLike.count({
+                where: {
+                    challengeId: challenge.id,
+                    isLike: false
+                }
+            })
+        ]);
 
         // Add the proper counts to the response
         const responseData = {
@@ -179,19 +181,28 @@ export const getHomePageChallenges = async (req: Request, res: Response) => {
     try {
         const challenges = await prisma.challenge.findMany({
             take: 4,
-            include: {
+            select: {
+                id: true,
+                title: true,
+                difficulty: true,
+                points: true,
+                description: true,
+                createdAt: true,
                 creator: {
                     select: {
                         username: true,
                         image: true
                     }
                 },
-                languages: true,
-                category: true,
+                category: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
                 _count: {
                     select: {
-                        submissions: true,
-                        likes: true
+                        submissions: true
                     }
                 }
             },

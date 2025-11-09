@@ -7,7 +7,6 @@ import {
     User as UserIcon,
     Bell,
     Shield,
-    CreditCard,
     Settings as SettingsIcon,
     ChevronRight,
     LogOut,
@@ -30,12 +29,19 @@ import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useNotificationSettings, useSecuritySettings, useUserPreferences } from '@/hooks/useSettings';
 import { Theme } from '@/lib/store/themeStore';
 
 const Settings = () => {
     const { user } = useAuthStore();
     const { theme, setTheme } = useThemeStore();
     const { userData, loading: profileLoading, fetchUserProfileById, updateUserProfile } = useUserProfile();
+    
+    // Backend hooks for settings
+    const { settings: notificationSettings, loading: notificationLoading, updateSettings: updateNotifications } = useNotificationSettings();
+    const { settings: securitySettings, loading: securityLoading, updateSettings: updateSecurity } = useSecuritySettings();
+    const { preferences: userPreferences, loading: preferencesLoading, updatePreferences: updatePrefs } = useUserPreferences();
+    
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState('profile');
@@ -44,27 +50,11 @@ const Settings = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const hasFetchedRef = useRef(false);
 
-    const [notificationPrefs, setNotificationPrefs] = useState({
-        contestAlerts: true,
-        leaderboardUpdates: true,
-        streakAlerts: true,
-        emailNotifications: true,
-        digestFrequency: 'weekly'
-    })
-
-    const [securitySettings, setSecuritySettings] = useState({
-        twoFactorEnabled: false,
-        showPassword: false,
-        currentPassword: "",
-        newPassword: "",
-        confirmNewPassword: ""
-    })
-
-    const [preferences, setPreferences] = useState({
-        theme: theme || "system",
-        language: "en",
-        codeEditor: "vs-dark"
-    })
+    // Local state for forms
+    const [showPassword, setShowPassword] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmNewPassword, setConfirmNewPassword] = useState("");
     // Form states for profile info
     const [formData, setFormData] = useState({
         name: '',
@@ -105,24 +95,62 @@ const Settings = () => {
         }
     }, [userData]);
 
-    const handleThemeChange = (newTheme: Theme) => {
-        setPreferences({ ...preferences, theme: newTheme });
-        setTheme(newTheme);
-        toast.success(`Theme changed to ${newTheme}`);
+    const handleThemeChange = async (newTheme: Theme) => {
+        try {
+            setTheme(newTheme);
+            await updatePrefs({ theme: newTheme });
+            toast.success(`Theme changed to ${newTheme}`);
+        } catch (err) {
+            toast.error("Failed to update theme preference");
+        }
     }
 
-    const toggleNotificationPref = (key: string) => {
-        setNotificationPrefs(prev => ({
-            ...prev,
-            [key]: !prev[key as keyof typeof prev]
-        }));
+    const toggleNotificationPref = async (key: string) => {
+        if (!notificationSettings) return;
+        
+        try {
+            const currentValue = notificationSettings[key as keyof typeof notificationSettings];
+            const newValue = typeof currentValue === 'boolean' ? !currentValue : true;
+            
+            if (key === 'emailNotifications') {
+                // If disabling email notifications, disable all other notification types
+                if (!newValue) {
+                    await updateNotifications({
+                        emailNotifications: false,
+                        contestAlerts: false,
+                        leaderboardUpdates: false,
+                        streakAlerts: false
+                    });
+                } else {
+                    // If enabling email notifications, just toggle it on
+                    await updateNotifications({
+                        emailNotifications: true
+                    });
+                }
+            } else {
+                // For other notification types
+                if (newValue && !notificationSettings?.emailNotifications) {
+                    // If enabling any other notification and email is disabled, enable email too
+                    await updateNotifications({
+                        emailNotifications: true,
+                        [key]: true
+                    });
+                } else {
+                    // Normal toggle
+                    await updateNotifications({
+                        [key]: newValue
+                    });
+                }
+            }
+        } catch (err) {
+            toast.error("Failed to update notification settings");
+        }
     }
 
     const saveNotificationSettings = async () => {
         setSaving(true);
         try {
-            // Simulated save - in real app, update to backend
-            await new Promise((resolve) => setTimeout(resolve, 800))
+            // Settings are saved automatically with each toggle
             toast.success("Notification preferences saved!")
         } catch (err) {
             toast.error("Failed to save notification settings")
@@ -261,13 +289,17 @@ const Settings = () => {
     };
 
     if (!user) return null;
-    if (loading || profileLoading) return <Loader />;
+    
+    // Show loader if any of the main data is still loading
+    if (loading || profileLoading || (notificationLoading && !notificationSettings) || 
+        (securityLoading && !securitySettings) || (preferencesLoading && !userPreferences)) {
+        return <Loader />;
+    }
 
     const tabs = [
         { id: 'profile', label: 'Profile Settings', icon: <UserIcon className="w-5 h-5" /> },
         { id: 'notifications', label: 'Notifications', icon: <Bell className="w-5 h-5" /> },
         { id: 'security', label: 'Security', icon: <Shield className="w-5 h-5" /> },
-        { id: 'billing', label: 'Billing', icon: <CreditCard className="w-5 h-5" /> },
         { id: 'preferences', label: 'Preferences', icon: <SettingsIcon className="w-5 h-5" /> },
     ];
 
@@ -593,13 +625,13 @@ const Settings = () => {
                                                         whileHover={{ scale: 1.05 }}
                                                         whileTap={{ scale: 0.95 }}
                                                         onClick={() => toggleNotificationPref("emailNotifications")}
-                                                        className={`relative w-12 h-6 rounded-full transition-colors ${notificationPrefs.emailNotifications ? "bg-orange-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                                                        className={`relative w-12 h-6 rounded-full transition-colors ${notificationSettings?.emailNotifications ? "bg-orange-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
                                                     >
                                                         <motion.div
                                                             layout
                                                             className="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all"
                                                             initial={false}
-                                                            animate={{ left: notificationPrefs.emailNotifications ? "26px" : "2px" }}
+                                                            animate={{ left: notificationSettings?.emailNotifications ? "26px" : "2px" }}
                                                         />
                                                     </motion.button>
                                                 </div>
@@ -610,7 +642,7 @@ const Settings = () => {
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.4 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
+                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors ${!notificationSettings?.emailNotifications ? "opacity-60" : ""}`}
                                             >
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-3">
@@ -625,21 +657,28 @@ const Settings = () => {
                                                         </div>
                                                     </div>
                                                     <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
-                                                        onClick={() => toggleNotificationPref("contestAlerts")}
-                                                        className={`relative w-12 h-6 rounded-full transition-colors ${notificationPrefs.contestAlerts ? "bg-blue-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                                                        whileHover={{ scale: notificationSettings?.emailNotifications ? 1.05 : 1 }}
+                                                        whileTap={{ scale: notificationSettings?.emailNotifications ? 0.95 : 1 }}
+                                                        onClick={() => notificationSettings?.emailNotifications && toggleNotificationPref("contestAlerts")}
+                                                        disabled={!notificationSettings?.emailNotifications}
+                                                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                                                            !notificationSettings?.emailNotifications 
+                                                                ? "bg-gray-400 opacity-50 cursor-not-allowed" 
+                                                                : notificationSettings?.contestAlerts 
+                                                                    ? "bg-blue-500" 
+                                                                    : isDark ? "bg-gray-700" : "bg-gray-300"
+                                                        }`}
                                                     >
                                                         <motion.div
                                                             layout
                                                             className="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all"
                                                             initial={false}
-                                                            animate={{ left: notificationPrefs.contestAlerts ? "26px" : "2px" }}
+                                                            animate={{ left: (notificationSettings?.emailNotifications && notificationSettings?.contestAlerts) ? "26px" : "2px" }}
                                                         />
                                                     </motion.button>
                                                 </div>
                                                 <p className={`text-xs ml-11 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-                                                    Send to: {notificationPrefs.emailNotifications ? userData?.email : "Email disabled"}
+                                                    Send to: {notificationSettings?.emailNotifications ? userData?.email : "Email disabled"}
                                                 </p>
                                             </motion.div>
 
@@ -648,7 +687,7 @@ const Settings = () => {
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.5 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
+                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors ${!notificationSettings?.emailNotifications ? "opacity-60" : ""}`}
                                             >
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-3">
@@ -663,21 +702,28 @@ const Settings = () => {
                                                         </div>
                                                     </div>
                                                     <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
-                                                        onClick={() => toggleNotificationPref("leaderboardUpdates")}
-                                                        className={`relative w-12 h-6 rounded-full transition-colors ${notificationPrefs.leaderboardUpdates ? "bg-purple-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                                                        whileHover={{ scale: notificationSettings?.emailNotifications ? 1.05 : 1 }}
+                                                        whileTap={{ scale: notificationSettings?.emailNotifications ? 0.95 : 1 }}
+                                                        onClick={() => notificationSettings?.emailNotifications && toggleNotificationPref("leaderboardUpdates")}
+                                                        disabled={!notificationSettings?.emailNotifications}
+                                                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                                                            !notificationSettings?.emailNotifications 
+                                                                ? "bg-gray-400 opacity-50 cursor-not-allowed" 
+                                                                : notificationSettings?.leaderboardUpdates 
+                                                                    ? "bg-purple-500" 
+                                                                    : isDark ? "bg-gray-700" : "bg-gray-300"
+                                                        }`}
                                                     >
                                                         <motion.div
                                                             layout
                                                             className="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all"
                                                             initial={false}
-                                                            animate={{ left: notificationPrefs.leaderboardUpdates ? "26px" : "2px" }}
+                                                            animate={{ left: (notificationSettings?.emailNotifications && notificationSettings?.leaderboardUpdates) ? "26px" : "2px" }}
                                                         />
                                                     </motion.button>
                                                 </div>
                                                 <p className={`text-xs ml-11 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-                                                    Send to: {notificationPrefs.emailNotifications ? userData?.email : "Email disabled"}
+                                                    Send to: {notificationSettings?.emailNotifications ? userData?.email : "Email disabled"}
                                                 </p>
                                             </motion.div>
 
@@ -686,7 +732,7 @@ const Settings = () => {
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.6 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
+                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors ${!notificationSettings?.emailNotifications ? "opacity-60" : ""}`}
                                             >
                                                 <div className="flex items-center justify-between mb-3">
                                                     <div className="flex items-center gap-3">
@@ -701,21 +747,28 @@ const Settings = () => {
                                                         </div>
                                                     </div>
                                                     <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
-                                                        onClick={() => toggleNotificationPref("streakAlerts")}
-                                                        className={`relative w-12 h-6 rounded-full transition-colors ${notificationPrefs.streakAlerts ? "bg-red-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                                                        whileHover={{ scale: notificationSettings?.emailNotifications ? 1.05 : 1 }}
+                                                        whileTap={{ scale: notificationSettings?.emailNotifications ? 0.95 : 1 }}
+                                                        onClick={() => notificationSettings?.emailNotifications && toggleNotificationPref("streakAlerts")}
+                                                        disabled={!notificationSettings?.emailNotifications}
+                                                        className={`relative w-12 h-6 rounded-full transition-colors ${
+                                                            !notificationSettings?.emailNotifications 
+                                                                ? "bg-gray-400 opacity-50 cursor-not-allowed" 
+                                                                : notificationSettings?.streakAlerts 
+                                                                    ? "bg-red-500" 
+                                                                    : isDark ? "bg-gray-700" : "bg-gray-300"
+                                                        }`}
                                                     >
                                                         <motion.div
                                                             layout
                                                             className="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all"
                                                             initial={false}
-                                                            animate={{ left: notificationPrefs.streakAlerts ? "26px" : "2px" }}
+                                                            animate={{ left: (notificationSettings?.emailNotifications && notificationSettings?.streakAlerts) ? "26px" : "2px" }}
                                                         />
                                                     </motion.button>
                                                 </div>
                                                 <p className={`text-xs ml-11 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-                                                    Send to: {notificationPrefs.emailNotifications ? userData?.email : "Email disabled"}
+                                                    Send to: {notificationSettings?.emailNotifications ? userData?.email : "Email disabled"}
                                                 </p>
                                             </motion.div>
 
@@ -724,22 +777,26 @@ const Settings = () => {
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.7 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
+                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors ${!notificationSettings?.emailNotifications ? "opacity-60" : ""}`}
                                             >
                                                 <label className="block text-sm font-semibold mb-3">Digest Frequency</label>
                                                 <div className="grid grid-cols-3 gap-3">
                                                     {["daily", "weekly", "monthly"].map((freq) => (
                                                         <motion.button
                                                             key={freq}
-                                                            whileHover={{ scale: 1.02 }}
-                                                            whileTap={{ scale: 0.98 }}
-                                                            onClick={() => setNotificationPrefs({ ...notificationPrefs, digestFrequency: freq })}
-                                                            className={`py-2 px-4 rounded-lg transition-all capitalize ${notificationPrefs.digestFrequency === freq
-                                                                ? "bg-orange-500 text-white"
-                                                                : isDark
-                                                                    ? "bg-gray-700 hover:bg-gray-600"
-                                                                    : "bg-gray-100 hover:bg-gray-200"
-                                                                }`}
+                                                            whileHover={{ scale: notificationSettings?.emailNotifications ? 1.02 : 1 }}
+                                                            whileTap={{ scale: notificationSettings?.emailNotifications ? 0.98 : 1 }}
+                                                            onClick={() => notificationSettings?.emailNotifications && updateNotifications({ digestFrequency: freq as 'daily' | 'weekly' | 'monthly' })}
+                                                            disabled={!notificationSettings?.emailNotifications}
+                                                            className={`py-2 px-4 rounded-lg transition-all capitalize ${
+                                                                !notificationSettings?.emailNotifications
+                                                                    ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                                                                    : notificationSettings?.digestFrequency === freq
+                                                                        ? "bg-orange-500 text-white"
+                                                                        : isDark
+                                                                            ? "bg-gray-700 hover:bg-gray-600"
+                                                                            : "bg-gray-100 hover:bg-gray-200"
+                                                            }`}
                                                         >
                                                             {freq}
                                                         </motion.button>
@@ -822,24 +879,17 @@ const Settings = () => {
                                                             className={`flex items-center px-3 py-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-50 border-gray-300"}`}
                                                         >
                                                             <input
-                                                                type={securitySettings.showPassword ? "text" : "password"}
-                                                                value={securitySettings.currentPassword}
-                                                                onChange={(e) =>
-                                                                    setSecuritySettings({ ...securitySettings, currentPassword: e.target.value })
-                                                                }
+                                                                type={showPassword ? "text" : "password"}
+                                                                value={currentPassword}
+                                                                onChange={(e) => setCurrentPassword(e.target.value)}
                                                                 placeholder="Enter current password"
                                                                 className={`flex-1 outline-none bg-transparent text-sm`}
                                                             />
                                                             <button
-                                                                onClick={() =>
-                                                                    setSecuritySettings({
-                                                                        ...securitySettings,
-                                                                        showPassword: !securitySettings.showPassword,
-                                                                    })
-                                                                }
+                                                                onClick={() => setShowPassword(!showPassword)}
                                                                 className="text-gray-500 hover:text-gray-700"
                                                             >
-                                                                {securitySettings.showPassword ? (
+                                                                {showPassword ? (
                                                                     <EyeOff className="w-4 h-4" />
                                                                 ) : (
                                                                     <Eye className="w-4 h-4" />
@@ -852,8 +902,8 @@ const Settings = () => {
                                                         <label className="block text-sm font-medium mb-2">New Password</label>
                                                         <input
                                                             type="password"
-                                                            value={securitySettings.newPassword}
-                                                            onChange={(e) => setSecuritySettings({ ...securitySettings, newPassword: e.target.value })}
+                                                            value={newPassword}
+                                                            onChange={(e) => setNewPassword(e.target.value)}
                                                             placeholder="Enter new password"
                                                             className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-50 border-gray-300"} outline-none text-sm`}
                                                         />
@@ -866,10 +916,8 @@ const Settings = () => {
                                                         <label className="block text-sm font-medium mb-2">Confirm New Password</label>
                                                         <input
                                                             type="password"
-                                                            value={securitySettings.confirmNewPassword}
-                                                            onChange={(e) =>
-                                                                setSecuritySettings({ ...securitySettings, confirmNewPassword: e.target.value })
-                                                            }
+                                                            value={confirmNewPassword}
+                                                            onChange={(e) => setConfirmNewPassword(e.target.value)}
                                                             placeholder="Confirm new password"
                                                             className={`w-full px-3 py-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-50 border-gray-300"} outline-none text-sm`}
                                                         />
@@ -886,7 +934,7 @@ const Settings = () => {
                                             </motion.div>
 
                                             {/* Two-Factor Authentication */}
-                                            <motion.div
+                                            {/* <motion.div
                                                 initial={{ opacity: 0, y: 10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.4 }}
@@ -907,23 +955,18 @@ const Settings = () => {
                                                     <motion.button
                                                         whileHover={{ scale: 1.05 }}
                                                         whileTap={{ scale: 0.95 }}
-                                                        onClick={() =>
-                                                            setSecuritySettings({
-                                                                ...securitySettings,
-                                                                twoFactorEnabled: !securitySettings.twoFactorEnabled,
-                                                            })
-                                                        }
-                                                        className={`relative w-12 h-6 rounded-full transition-colors ${securitySettings.twoFactorEnabled ? "bg-purple-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
+                                                        onClick={() => updateSecurity({ twoFactorEnabled: !securitySettings?.twoFactorEnabled })}
+                                                        className={`relative w-12 h-6 rounded-full transition-colors ${securitySettings?.twoFactorEnabled ? "bg-purple-500" : isDark ? "bg-gray-700" : "bg-gray-300"}`}
                                                     >
                                                         <motion.div
                                                             layout
                                                             className="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all"
                                                             initial={false}
-                                                            animate={{ left: securitySettings.twoFactorEnabled ? "26px" : "2px" }}
+                                                            animate={{ left: securitySettings?.twoFactorEnabled ? "26px" : "2px" }}
                                                         />
                                                     </motion.button>
                                                 </div>
-                                                {securitySettings.twoFactorEnabled && (
+                                                {securitySettings?.twoFactorEnabled && (
                                                     <motion.p
                                                         initial={{ opacity: 0, y: -5 }}
                                                         animate={{ opacity: 1, y: 0 }}
@@ -932,24 +975,7 @@ const Settings = () => {
                                                         ✓ Two-factor authentication is enabled
                                                     </motion.p>
                                                 )}
-                                            </motion.div>
-
-                                            {/* Active Sessions */}
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.5 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
-                                            >
-                                                <h3 className="font-semibold mb-4">Active Sessions</h3>
-                                                <div className={`space-y-2 p-3 rounded-lg ${isDark ? "bg-gray-700" : "bg-gray-50"}`}>
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span>Current Session - Browser</span>
-                                                        <span className="text-xs text-green-500">● Active</span>
-                                                    </div>
-                                                    <p className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Last active: Just now</p>
-                                                </div>
-                                            </motion.div>
+                                            </motion.div> */}
                                         </div>
                                     </div>
                                 )}
@@ -983,7 +1009,7 @@ const Settings = () => {
                                                             whileHover={{ scale: 1.03 }}
                                                             whileTap={{ scale: 0.97 }}
                                                             onClick={() => handleThemeChange(id)}
-                                                            className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${preferences.theme === id
+                                                            className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${userPreferences?.theme === id
                                                                     ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30"
                                                                     : isDark
                                                                         ? "border-gray-700 hover:border-gray-600"
@@ -992,7 +1018,7 @@ const Settings = () => {
                                                         >
                                                             <Icon className="w-6 h-6" />
                                                             <span className="text-sm font-medium">{label}</span>
-                                                            {preferences.theme === id && (
+                                                            {userPreferences?.theme === id && (
                                                                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-orange-500">
                                                                     <Check className="w-4 h-4" />
                                                                 </motion.div>
@@ -1011,8 +1037,8 @@ const Settings = () => {
                                             >
                                                 <label className="block text-sm font-semibold mb-3">Language</label>
                                                 <select
-                                                    value={preferences.language}
-                                                    onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}
+                                                    value={userPreferences?.language || "en"}
+                                                    onChange={(e) => updatePrefs({ language: e.target.value })}
                                                     className={`w-full px-4 py-2 rounded-lg border ${isDark ? "bg-gray-700 border-gray-600" : "bg-gray-50 border-gray-300"} outline-none text-sm transition-colors`}
                                                 >
                                                     <option value="en">English</option>
@@ -1038,8 +1064,8 @@ const Settings = () => {
                                                             key={editorTheme}
                                                             whileHover={{ scale: 1.02 }}
                                                             whileTap={{ scale: 0.98 }}
-                                                            onClick={() => setPreferences({ ...preferences, codeEditor: editorTheme })}
-                                                            className={`p-3 rounded-lg border transition-all capitalize text-sm ${preferences.codeEditor === editorTheme
+                                                            onClick={() => updatePrefs({ codeEditor: editorTheme as any })}
+                                                            className={`p-3 rounded-lg border transition-all capitalize text-sm ${userPreferences?.codeEditor === editorTheme
                                                                     ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30"
                                                                     : isDark
                                                                         ? "border-gray-700 hover:bg-gray-700"
@@ -1047,7 +1073,7 @@ const Settings = () => {
                                                                 }`}
                                                         >
                                                             {editorTheme.replace("-", " ")}
-                                                            {preferences.codeEditor === editorTheme && <Check className="w-4 h-4 inline ml-2" />}
+                                                            {userPreferences?.codeEditor === editorTheme && <Check className="w-4 h-4 inline ml-2" />}
                                                         </motion.button>
                                                     ))}
                                                 </div>

@@ -554,30 +554,47 @@ export const getRegistrationStatus = async (req: Request, res: Response) => {
 
 export const getContests = async (req: Request, res: Response) => {
     try {
-        const contests = await prisma.contest.findMany({
-            include: {
-                _count: {
-                    select: { participants: true }
-                },
-                ...(req.user?.id && {
-                    participants: {
-                        where: { userId: req.user.id },
-                        take: 1,
-                        select: { id: true }
+        const userId = req.user?.id;
+        
+        // Run queries in parallel
+        const [contests, userRegistrations] = await Promise.all([
+            prisma.contest.findMany({
+                select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    startsAt: true,
+                    endsAt: true,
+                    registrationEnd: true,
+                    status: true,
+                    points: true,
+                    maxParticipants: true,
+                    tags: true,
+                    createdAt: true,
+                    _count: {
+                        select: { participants: true }
                     }
-                })
-            },
-            orderBy: [
-                { status: 'asc' },
-                { startsAt: 'asc' }
-            ]
-        });
+                },
+                orderBy: [
+                    { status: 'asc' },
+                    { startsAt: 'asc' }
+                ]
+            }),
+            
+            // Get user registrations separately if user is logged in
+            userId ? prisma.contestParticipant.findMany({
+                where: { userId },
+                select: { contestId: true }
+            }) : Promise.resolve([])
+        ]);
+
+        // Create a Set of registered contest IDs for O(1) lookup
+        const registeredContestIds = new Set(userRegistrations.map(reg => reg.contestId));
 
         // Add isRegistered flag to each contest
         const contestsWithRegistration = contests.map(contest => ({
             ...contest,
-            isRegistered: req.user?.id ? (contest.participants && contest.participants.length > 0) : false,
-            participants: undefined // Remove the participants array from response
+            isRegistered: userId ? registeredContestIds.has(contest.id) : false
         }));
 
         res.json(contestsWithRegistration);

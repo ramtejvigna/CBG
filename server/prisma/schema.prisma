@@ -9,31 +9,34 @@ datasource db {
 }
 
 model User {
-  id                    String               @id @default(cuid())
-  email                 String               @unique
+  id                    String                @id @default(cuid())
+  email                 String                @unique
   password              String?
   name                  String?
-  username              String               @unique
+  username              String                @unique
   image                 String?
-  needsOnboarding       Boolean              @default(false)
+  needsOnboarding       Boolean               @default(false)
   emailVerified         DateTime?
-  githubConnected       Boolean              @default(false)
+  githubConnected       Boolean               @default(false)
   githubUsername        String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  role                  String               @default("USER")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  role                  String                @default("USER")
   lastActive            DateTime?
   accounts              Account[]
   activites             Activity[]
   adminLead             AdminLead?
-  createChallenges      Challenge[]          @relation("ChallengeCreator")
+  createChallenges      Challenge[]           @relation("ChallengeCreator")
   challengeAttempts     ChallengeAttempt[]
   challengeLikes        ChallengeLike[]
-  createdContests       Contest[]            @relation("ContestCreator")
+  createdContests       Contest[]             @relation("ContestCreator")
   contestParticipations ContestParticipant[]
   sessions              Session[]
   submissions           Submission[]
   userProfile           UserProfile?
+  notificationSettings  NotificationSettings?
+  securitySettings      SecuritySettings?
+  userPreferences       UserPreferences?
 }
 
 model UserProfile {
@@ -52,6 +55,44 @@ model UserProfile {
   user              User       @relation(fields: [userId], references: [id])
   badges            Badge[]    @relation("BadgeToUserProfile")
   languages         Language[] @relation("LanguageToUserProfile")
+}
+
+model NotificationSettings {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  contestAlerts         Boolean  @default(true)
+  leaderboardUpdates    Boolean  @default(true)
+  streakAlerts          Boolean  @default(true)
+  emailNotifications    Boolean  @default(true)
+  digestFrequency       String   @default("weekly") // weekly, daily, monthly
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SecuritySettings {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  twoFactorEnabled      Boolean  @default(false)
+  lastPasswordChange    DateTime?
+  passwordChangeRequired Boolean @default(false)
+  loginAttempts         Int      @default(0)
+  lockedUntil           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreferences {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  theme                 String   @default("system") // light, dark, system
+  language              String   @default("en")
+  codeEditor            String   @default("vs-dark")
+  timezone              String   @default("UTC")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Activity {

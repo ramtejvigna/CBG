@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { getCachedLanguages, cache, CACHE_KEYS } from '../lib/cache.js';
 import prisma from '../lib/prisma.js';
 
 export const getLanguages = async (req: Request, res: Response) => {
@@ -9,15 +10,7 @@ export const getLanguages = async (req: Request, res: Response) => {
             getLanguageById(req, res);
             return;
         }
-        const languages = await prisma.language.findMany({
-            select: {
-                id: true,
-                name: true
-            },
-            orderBy: {
-                name: 'asc'
-            }
-        });
+        const languages = await getCachedLanguages();
 
         res.json({ 
             success: true, 
@@ -44,13 +37,9 @@ const getLanguageById = async (req: Request, res: Response) => {
             });
         }
 
-        const language = await prisma.language.findUnique({
-            where: { id },
-            select: {
-                id: true,
-                name: true
-            }
-        });
+        const languages = await getCachedLanguages();
+        const languagesArray = Array.isArray(languages) ? languages : [];
+        const language = languagesArray.find((lang: any) => lang.id === id);
 
         if (!language) {
             return res.status(404).json({ 
@@ -82,16 +71,19 @@ export const addLanguage = async (req: Request, res: Response) => {
                 name,
                 percentage: 0
             }
-        })
+        });
+
+        // Invalidate language cache
+        cache.del(CACHE_KEYS.LANGUAGES);
 
         return res.status(200).json({
             success: true,
             message: 'Successfully added language'
-        })
+        });
     } catch (error) {
         return res.status(500).json({
             success: false, 
             message: 'Error while adding language'
-        })
+        });
     }
-}
+};

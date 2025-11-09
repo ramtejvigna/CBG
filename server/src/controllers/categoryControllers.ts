@@ -1,23 +1,10 @@
 import type { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
+import { getCachedCategories } from '../lib/cache.js';
 
 export const getAllCategories = async (req: Request, res: Response) => {
     try {
-        const categories = await prisma.challengeCategory.findMany({
-            select: {
-                id: true,
-                name: true,
-                description: true,
-                _count: {
-                    select: {
-                        challenges: true
-                    }
-                }
-            },
-            orderBy: {
-                name: 'asc'
-            }
-        });
+        const categories = await getCachedCategories();
 
         res.json(categories);
     } catch (error) {

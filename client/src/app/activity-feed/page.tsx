@@ -99,6 +99,7 @@ const ActivityFeedPage = () => {
     }
 
     const getResultColor = (result: string) => {
+        if (!result) return "bg-gray-500/20 text-gray-400 border-gray-500/30";
         const lowerResult = result.toLowerCase();
         
         // Success states
@@ -147,25 +148,34 @@ const ActivityFeedPage = () => {
     }
 
     const formatActivityDescription = (activity: Activity) => {
+        if (!activity || !activity.result) {
+            return 'No description available';
+        }
+        
         const baseDescription = activity.result;
         
-        switch (activity.type) {
-            case "CHALLENGE":
-                return `Challenge ${baseDescription.toLowerCase()}`;
-            case "CONTEST":
-                return `Contest ${baseDescription.toLowerCase()}`;
-            case "BADGE":
-                return `Badge ${baseDescription.toLowerCase()}`;
-            case "DISCUSSION":
-                return `Discussion ${baseDescription.toLowerCase()}`;
-            default:
-                return baseDescription;
+        try {
+            switch (activity.type) {
+                case "CHALLENGE":
+                    return `Challenge ${baseDescription.toLowerCase()}`;
+                case "CONTEST":
+                    return `Contest ${baseDescription.toLowerCase()}`;
+                case "BADGE":
+                    return `Badge ${baseDescription.toLowerCase()}`;
+                case "DISCUSSION":
+                    return `Discussion ${baseDescription.toLowerCase()}`;
+                default:
+                    return baseDescription;
+            }
+        } catch (error) {
+            console.error('Error formatting activity description:', error);
+            return baseDescription || 'No description available';
         }
     }
 
     const formatActivityTime = (time: string) => {
         // If time is in format like "00:02:30" (duration), format it nicely
-        if (time && time.includes(':')) {
+        if (time && typeof time === 'string' && time.includes(':')) {
             const parts = time.split(':');
             const hours = parseInt(parts[0]);
             const minutes = parseInt(parts[1]);
@@ -185,6 +195,7 @@ const ActivityFeedPage = () => {
     }
 
     const formatTimeAgo = (timestamp: string) => {
+        if (!timestamp) return "Unknown time";
         const now = new Date()
         const time = new Date(timestamp)
         const diffInHours = Math.floor((now.getTime() - time.getTime()) / (1000 * 60 * 60))
@@ -371,7 +382,7 @@ const ActivityFeedPage = () => {
                 {/* Activity Feed */}
                 {!loading && activities && activities.length > 0 && (
                     <div className="space-y-4">
-                        {activities.map((activity, index) => (
+                        {activities.filter(activity => activity && activity.id).map((activity, index) => (
                             <Card
                                 key={activity.id}
                                 className={`${theme === "dark"
@@ -382,13 +393,13 @@ const ActivityFeedPage = () => {
                             >
                                 <CardContent className="p-6">
                                     <div className="flex items-start gap-4">
-                                        <div className="flex-shrink-0 mt-1">{getActivityIcon(activity.type)}</div>
+                                        <div className="flex-shrink-0 mt-1">{getActivityIcon(activity.type || "")}</div>
 
                                         <div className="flex-1">
                                             <div className="flex items-start justify-between mb-2">
                                                 <div>
                                                     <h3 className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-1`}>
-                                                        {activity.name}
+                                                        {activity.name || "Unknown Activity"}
                                                     </h3>
                                                     <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
                                                         {formatActivityDescription(activity)}
@@ -396,9 +407,9 @@ const ActivityFeedPage = () => {
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-4">
                                                     <Badge className={`${getResultColor(activity.result)} border text-xs`}>
-                                                        {activity.result}
+                                                        {activity.result || "No result"}
                                                     </Badge>
-                                                    {activity.points > 0 && (
+                                                    {(activity.points || 0) > 0 && (
                                                         <Badge variant="secondary" className="text-xs">
                                                             +{activity.points} pts
                                                         </Badge>
@@ -420,7 +431,7 @@ const ActivityFeedPage = () => {
                                                             Duration: {formatActivityTime(activity.time)}
                                                         </span>
                                                         <span className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                                            Type: {activity.type}
+                                                            Type: {activity.type || "Unknown"}
                                                         </span>
                                                     </div>
                                                 </div>
