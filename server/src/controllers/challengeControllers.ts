@@ -188,18 +188,6 @@ export const getHomePageChallenges = async (req: Request, res: Response) => {
                 points: true,
                 description: true,
                 createdAt: true,
-                creator: {
-                    select: {
-                        username: true,
-                        image: true
-                    }
-                },
-                category: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                },
                 _count: {
                     select: {
                         submissions: true
