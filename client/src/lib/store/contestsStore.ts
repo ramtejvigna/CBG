@@ -213,7 +213,7 @@ export const useContestsStore = create<ContestsState>()(
 
       searchContests: (query: string, status?: 'upcoming' | 'live' | 'past') => {
         const state = get();
-        let contestsToSearch = status ? state.getContestsByStatus(status) : state.contests;
+        const contestsToSearch = status ? state.getContestsByStatus(status) : state.contests;
         
         if (!query.trim()) {
           return contestsToSearch;

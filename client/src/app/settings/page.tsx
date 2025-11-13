@@ -1059,12 +1059,12 @@ const Settings = () => {
                                             >
                                                 <label className="block text-sm font-semibold mb-3">Code Editor Theme</label>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    {["vs-dark", "vs-light", "github-dark", "monokai"].map((editorTheme) => (
+                                                    {(["vs-dark", "vs-light", "hc-black", "hc-light"] as const).map((editorTheme) => (
                                                         <motion.button
                                                             key={editorTheme}
                                                             whileHover={{ scale: 1.02 }}
                                                             whileTap={{ scale: 0.98 }}
-                                                            onClick={() => updatePrefs({ codeEditor: editorTheme as any })}
+                                                            onClick={() => updatePrefs({ codeEditor: editorTheme })}
                                                             className={`p-3 rounded-lg border transition-all capitalize text-sm ${userPreferences?.codeEditor === editorTheme
                                                                     ? "border-orange-500 bg-orange-50 dark:bg-orange-950/30"
                                                                     : isDark

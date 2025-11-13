@@ -335,7 +335,7 @@ const ContestsPage = () => {
                                                             Top Performers
                                                         </p>
                                                         <div className="space-y-1">
-                                                            {contest.participants.slice(0, 3).map((participant: any, idx: number) => (
+                                                            {contest.participants.slice(0, 3).map((participant: { user: { username: string; name: string; image: string | null } }, idx: number) => (
                                                                 <div key={idx} className="flex items-center justify-between text-xs text-slate-400">
                                                                     <span className="flex items-center gap-2">
                                                                         <span className="text-yellow-500 font-bold">#{idx + 1}</span>
