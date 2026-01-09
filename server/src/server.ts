@@ -11,6 +11,7 @@ import contestRoutes from "./routes/contestRoutes.js";
 import languageRoutes from "./routes/languageRoutes.js";
 import executeRoutes from "./routes/executeRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
+import statisticsRoutes from "./routes/statisticsRoutes.js";
 import { initializeRankingSystem, shutdownRankingSystem } from "./lib/rankingScheduler.js";
 import { initializeContestScheduler, shutdownContestScheduler } from "./lib/contestScheduler.js";
 import { 
@@ -60,6 +61,7 @@ app.use('/api/contests', contestRoutes);
 app.use('/api/languages', languageRoutes);
 app.use('/api/execute', codeExecutionRateLimit, executeRoutes);
 app.use('/api/search', searchRateLimit, searchRoutes);
+app.use('/api/statistics', statisticsRoutes);
 app.use('/api', userRoutes);
 app.use('/api/admin', adminRateLimit, adminRoutes);
 

@@ -765,7 +765,7 @@ int main() {
                                                                 className={`text-sm font-mono transition-colors duration-200 ${isDark ? "text-gray-100" : "text-gray-900"
                                                                     }`}
                                                             >
-                                                                {testCase.input}
+                                                                {testCase.input || "\"\""}
                                                             </pre>
                                                         </div>
                                                         <div className="space-x-2">
@@ -779,7 +779,7 @@ int main() {
                                                                 className={`text-sm font-mono transition-colors duration-200 ${isDark ? "text-gray-100" : "text-gray-900"
                                                                     }`}
                                                             >
-                                                                {testCase.output}
+                                                                {testCase.output || "\"\""}
                                                             </pre>
                                                         </div>
                                                         {testCase.explanation && (

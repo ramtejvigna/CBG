@@ -328,7 +328,7 @@ const Settings = () => {
                                             {tab.icon}
                                             <span className="ml-3">{tab.label}</span>
                                         </div>
-                                        <ChevronRight className={`w-4 h-4 transition-transform ${activeTab === tab.id ? 'rotate-90' : ''}`} />
+                                        {/* <ChevronRight className={`w-4 h-4 transition-transform`} /> */}
                                     </button>
                                 </motion.li>
                             ))}
@@ -1076,57 +1076,6 @@ const Settings = () => {
                                                             {userPreferences?.codeEditor === editorTheme && <Check className="w-4 h-4 inline ml-2" />}
                                                         </motion.button>
                                                     ))}
-                                                </div>
-                                            </motion.div>
-
-                                            {/* Additional Preferences */}
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.6 }}
-                                                className={`p-6 rounded-lg border ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} transition-colors`}
-                                            >
-                                                <h3 className="font-semibold mb-4">Other Preferences</h3>
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer">
-                                                        <span className="text-sm font-medium">Show hints during contests</span>
-                                                        <motion.button
-                                                            whileHover={{ scale: 1.05 }}
-                                                            whileTap={{ scale: 0.95 }}
-                                                            className={`relative w-10 h-5 rounded-full transition-colors bg-orange-500`}
-                                                        >
-                                                            <motion.div
-                                                                layout
-                                                                className="absolute w-4 h-4 bg-white rounded-full top-0.5 right-0.5 transition-all"
-                                                            />
-                                                        </motion.button>
-                                                    </div>
-                                                    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer">
-                                                        <span className="text-sm font-medium">Sound effects</span>
-                                                        <motion.button
-                                                            whileHover={{ scale: 1.05 }}
-                                                            whileTap={{ scale: 0.95 }}
-                                                            className={`relative w-10 h-5 rounded-full transition-colors bg-orange-500`}
-                                                        >
-                                                            <motion.div
-                                                                layout
-                                                                className="absolute w-4 h-4 bg-white rounded-full top-0.5 right-0.5 transition-all"
-                                                            />
-                                                        </motion.button>
-                                                    </div>
-                                                    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer">
-                                                        <span className="text-sm font-medium">Auto-save code</span>
-                                                        <motion.button
-                                                            whileHover={{ scale: 1.05 }}
-                                                            whileTap={{ scale: 0.95 }}
-                                                            className={`relative w-10 h-5 rounded-full transition-colors bg-orange-500`}
-                                                        >
-                                                            <motion.div
-                                                                layout
-                                                                className="absolute w-4 h-4 bg-white rounded-full top-0.5 right-0.5 transition-all"
-                                                            />
-                                                        </motion.button>
-                                                    </div>
                                                 </div>
                                             </motion.div>
 

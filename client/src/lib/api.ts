@@ -174,6 +174,10 @@ export const api = {
     getCategories: () =>
         apiCall('/api/categories'),
     
+    // Statistics
+    getStatistics: () =>
+        apiCall('/api/statistics'),
+    
     // Dashboard
     getDashboardStats: () =>
         apiCall('/api/admin/dashboard/stats', { requireAuth: true }),

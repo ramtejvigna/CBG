@@ -6,8 +6,12 @@ import Link from 'next/link';
 import Image from 'next/image'; // Import the Image component
 import CountUp from '@/components/CountUp';
 import ProfileCard from '@/components/ProfileCard';
+import { useStatistics } from '@/hooks/useStatistics';
 
 const AboutPage = () => {
+    // Fetch dynamic statistics from backend
+    const { statistics, loading: statsLoading } = useStatistics();
+
     // Team developers data
     const developer = {
         name: "Vigna Ramtej",
@@ -20,11 +24,11 @@ const AboutPage = () => {
     }
 
     // Platform statistics
-    const statistics = [
-        { label: "Coding Battles", value: 300, icon: Code },
-        { label: "Active Warriors", value: 125, icon: Users },
-        { label: "Problem Set", value: 400, icon: Code },
-        { label: "Languages", value: 12, icon: Globe }
+    const statisticsData = [
+        { label: "Coding Battles", value: statistics?.codingBattles, icon: Code },
+        { label: "Active Warriors", value: statistics?.activeWarriors, icon: Users },
+        { label: "Problem Set", value: statistics?.problemSet, icon: Code },
+        { label: "Languages", value: statistics?.languages, icon: Globe }
     ];
 
     // Core values
@@ -111,7 +115,7 @@ const AboutPage = () => {
             <div className="py-16 bg-gray-900">
                 <div className="container mx-auto px-8">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                        {statistics.map((stat, index) => (
+                        {statisticsData.map((stat, index) => (
                             <div key={index} className="flex flex-col items-center text-center">
                                 <div className="bg-gray-800 p-4 rounded-full mb-4 border-2 border-gray-700">
                                     <stat.icon size={24} className="text-orange-500" />
@@ -119,7 +123,7 @@ const AboutPage = () => {
                                 <div className="text-3xl font-bold mb-1 bg-gradient-to-tr from-[#F14A00] to-[#C62300] bg-clip-text text-transparent">
                                     <CountUp
                                         from={0}
-                                        to={stat.value}
+                                        to={stat.value || 0}
                                         separator=","
                                         direction="up"
                                         duration={1}
