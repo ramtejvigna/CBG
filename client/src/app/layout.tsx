@@ -15,7 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Code Battle Ground",
-  description: "",
+  description: "A competitive coding platform for developers",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
