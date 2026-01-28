@@ -19,12 +19,12 @@ app.use(express.json());
 // Get user profile by username
 app.get('/api/profile/:username', optionalAuthenticate, async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
 
     const user = await prisma.user.findUnique({
       where: { username: username.toLowerCase() },
       include: {
-        profile: true,
+        userProfile: true,
         submissions: {
           where: { status: 'ACCEPTED' },
           select: { challengeId: true },
@@ -43,12 +43,12 @@ app.get('/api/profile/:username', optionalAuthenticate, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const { password: _, resetToken: __, resetTokenExpires: ___, ...userWithoutSensitive } = user;
+    const { password: _, ...userWithoutPassword } = user;
 
     res.json({
       success: true,
       user: {
-        ...userWithoutSensitive,
+        ...userWithoutPassword,
         solvedChallenges: user.submissions.length,
         totalSubmissions: user._count.submissions,
         contestsParticipated: user._count.contestParticipations
@@ -63,8 +63,9 @@ app.get('/api/profile/:username', optionalAuthenticate, async (req, res) => {
 // Get user submissions
 app.get('/api/profile/:username/submissions', async (req, res) => {
   try {
-    const { username } = req.params;
-    const { page = '1', limit = '10' } = req.query;
+    const username = req.params.username as string;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '10';
 
     const user = await prisma.user.findUnique({
       where: { username: username.toLowerCase() },
@@ -75,8 +76,8 @@ app.get('/api/profile/:username/submissions', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [submissions, total] = await Promise.all([
@@ -87,7 +88,6 @@ app.get('/api/profile/:username/submissions', async (req, res) => {
             select: {
               id: true,
               title: true,
-              slug: true,
               difficulty: true
             }
           },
@@ -119,7 +119,7 @@ app.get('/api/profile/:username/submissions', async (req, res) => {
 // Get user contest history
 app.get('/api/profile/:username/contests', async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
 
     const user = await prisma.user.findUnique({
       where: { username: username.toLowerCase() },
@@ -143,7 +143,7 @@ app.get('/api/profile/:username/contests', async (req, res) => {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { joinedAt: 'desc' }
     });
 
     res.json({
@@ -163,8 +163,9 @@ app.get('/api/profile/:username/contests', async (req, res) => {
 // Get user activity
 app.get('/api/profile/:username/activity', async (req, res) => {
   try {
-    const { username } = req.params;
-    const { page = '1', limit = '20' } = req.query;
+    const username = req.params.username as string;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '20';
 
     const user = await prisma.user.findUnique({
       where: { username: username.toLowerCase() },
@@ -175,8 +176,8 @@ app.get('/api/profile/:username/activity', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [activities, total] = await Promise.all([
@@ -208,43 +209,44 @@ app.get('/api/profile/:username/activity', async (req, res) => {
 // Get leaderboard
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const { page = '1', limit = '50' } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '50';
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where: {
-          profile: { isNot: null }
-        },
+      prisma.userProfile.findMany({
         include: {
-          profile: true
+          user: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              image: true
+            }
+          }
         },
-        orderBy: {
-          profile: { points: 'desc' }
-        },
+        orderBy: { points: 'desc' },
         skip,
         take: limitNum
       }),
-      prisma.user.count({
-        where: { profile: { isNot: null } }
-      })
+      prisma.userProfile.count()
     ]);
 
     res.json({
       success: true,
-      leaderboard: users.map((user, index) => ({
+      leaderboard: users.map((profile, index) => ({
         rank: skip + index + 1,
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        image: user.image,
-        points: user.profile?.points || 0,
-        solved: user.profile?.solved || 0,
-        level: user.profile?.level || 1,
-        streakDays: user.profile?.streakDays || 0
+        id: profile.user.id,
+        username: profile.user.username,
+        name: profile.user.name,
+        image: profile.user.image,
+        points: profile.points,
+        solved: profile.solved,
+        level: profile.level,
+        streakDays: profile.streakDays
       })),
       pagination: {
         page: pageNum,
@@ -262,10 +264,11 @@ app.get('/api/leaderboard', async (req, res) => {
 // Get current user's submissions
 app.get('/api/submissions', authenticate, async (req, res) => {
   try {
-    const { page = '1', limit = '10' } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '10';
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [submissions, total] = await Promise.all([
@@ -276,7 +279,6 @@ app.get('/api/submissions', authenticate, async (req, res) => {
             select: {
               id: true,
               title: true,
-              slug: true,
               difficulty: true
             }
           },
@@ -301,58 +303,6 @@ app.get('/api/submissions', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Get submissions error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Update user profile
-app.put('/api/users/:id/profile', authenticate, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, bio, phone, preferredLanguage, image } = req.body;
-
-    // Verify user is updating their own profile
-    if (req.user!.id !== id) {
-      return res.status(403).json({ message: 'Cannot update another user\'s profile' });
-    }
-
-    const [user, profile] = await prisma.$transaction([
-      prisma.user.update({
-        where: { id },
-        data: {
-          name: name || undefined,
-          image: image || undefined
-        }
-      }),
-      prisma.userProfile.upsert({
-        where: { userId: id },
-        update: {
-          bio: bio || undefined,
-          phone: phone || undefined,
-          preferredLanguage: preferredLanguage || undefined
-        },
-        create: {
-          userId: id,
-          bio: bio || 'No bio provided',
-          phone,
-          preferredLanguage: preferredLanguage || 'javascript',
-          solved: 0,
-          level: 1,
-          points: 0,
-          streakDays: 0
-        }
-      })
-    ]);
-
-    res.json({
-      success: true,
-      user: {
-        ...user,
-        profile
-      }
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

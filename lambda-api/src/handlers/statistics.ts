@@ -27,7 +27,7 @@ app.get('/api/statistics', async (req, res) => {
       recentSubmissions
     ] = await Promise.all([
       prisma.user.count(),
-      prisma.challenge.count({ where: { isActive: true } }),
+      prisma.challenge.count(),
       prisma.submission.count(),
       prisma.contest.count(),
       prisma.submission.count({
@@ -40,12 +40,11 @@ app.get('/api/statistics', async (req, res) => {
     // Get difficulty distribution
     const difficultyDistribution = await prisma.challenge.groupBy({
       by: ['difficulty'],
-      where: { isActive: true },
-      _count: { id: true }
+      _count: { _all: true }
     });
 
     // Get top categories
-    const topCategories = await prisma.category.findMany({
+    const topCategories = await prisma.challengeCategory.findMany({
       include: {
         _count: { select: { challenges: true } }
       },
@@ -64,9 +63,9 @@ app.get('/api/statistics', async (req, res) => {
         totalContests,
         recentSubmissions,
         difficultyDistribution: Object.fromEntries(
-          difficultyDistribution.map(d => [d.difficulty, d._count.id])
+          difficultyDistribution.map(d => [d.difficulty, d._count._all])
         ),
-        topCategories: topCategories.map(c => ({
+        topCategories: topCategories.map((c: any) => ({
           id: c.id,
           name: c.name,
           challengeCount: c._count.challenges
@@ -102,25 +101,15 @@ app.get('/api/statistics/user', authenticate, async (req, res) => {
       })
     ]);
 
-    // Get submission by difficulty
-    const submissionsByDifficulty = await prisma.submission.findMany({
-      where: { userId, status: 'ACCEPTED' },
-      select: {
-        challenge: {
-          select: { difficulty: true }
-        }
+    // Get submission history (last 30 days)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const submissionHistory = await prisma.submission.groupBy({
+      by: ['createdAt'],
+      where: {
+        userId,
+        createdAt: { gte: thirtyDaysAgo }
       },
-      distinct: ['challengeId']
-    });
-
-    const difficultyBreakdown = {
-      EASY: 0,
-      MEDIUM: 0,
-      HARD: 0
-    };
-
-    submissionsByDifficulty.forEach(s => {
-      difficultyBreakdown[s.challenge.difficulty as keyof typeof difficultyBreakdown]++;
+      _count: { _all: true }
     });
 
     res.json({
@@ -130,11 +119,11 @@ app.get('/api/statistics/user', authenticate, async (req, res) => {
         totalSubmissions,
         acceptedSubmissions,
         acceptanceRate: totalSubmissions > 0 
-          ? Math.round((acceptedSubmissions / totalSubmissions) * 100) 
+          ? ((acceptedSubmissions / totalSubmissions) * 100).toFixed(1) 
           : 0,
         contestParticipations,
-        difficultyBreakdown,
-        recentActivity
+        recentActivity,
+        submissionHistory
       }
     });
   } catch (error) {

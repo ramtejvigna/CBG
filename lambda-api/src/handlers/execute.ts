@@ -1,8 +1,21 @@
-import type { APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda';
-
 const CODE_EXECUTION_URL = process.env.CODE_EXECUTION_URL || 'http://localhost:3002';
 
-export const handler: APIGatewayProxyHandler = async (event): Promise<APIGatewayProxyResult> => {
+interface LambdaEvent {
+  body: string | null;
+  headers: { [key: string]: string | undefined };
+  requestContext?: {
+    identity?: { sourceIp?: string };
+    requestId?: string;
+  };
+}
+
+interface LambdaResult {
+  statusCode: number;
+  headers: { [key: string]: string };
+  body: string;
+}
+
+export const handler = async (event: LambdaEvent): Promise<LambdaResult> => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': process.env.FRONTEND_URL || '*',
@@ -48,23 +61,13 @@ export const handler: APIGatewayProxyHandler = async (event): Promise<APIGateway
   } catch (error) {
     console.error('Code execution proxy error:', error);
     
-    // Check if it's a connection error
-    const isConnectionError = error instanceof Error && 
-      (error.message.includes('ECONNREFUSED') || 
-       error.message.includes('ETIMEDOUT') ||
-       error.message.includes('fetch failed'));
-
     return {
-      statusCode: isConnectionError ? 503 : 500,
+      statusCode: 503,
       headers,
-      body: JSON.stringify({ 
-        success: false, 
-        message: isConnectionError 
-          ? 'Code execution service is temporarily unavailable. Please try again later.'
-          : 'Failed to process code execution request',
-        error: process.env.NODE_ENV === 'development' 
-          ? (error instanceof Error ? error.message : 'Unknown error')
-          : undefined
+      body: JSON.stringify({
+        success: false,
+        message: 'Code execution service unavailable',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }),
     };
   }

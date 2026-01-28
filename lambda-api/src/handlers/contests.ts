@@ -17,23 +17,19 @@ app.use(cors({
 app.use(express.json());
 
 // Get all contests
-app.get('/api/contests', optionalAuthenticate, async (req, res) => {
+app.get('/api/contests', async (req, res) => {
   try {
-    const { 
-      page = '1', 
-      limit = '10', 
-      status,
-      sortBy = 'startsAt',
-      sortOrder = 'desc'
-    } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '20';
+    const status = req.query.status as string;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const where: any = {};
     if (status) {
-      where.status = status;
+      where.status = status.toUpperCase();
     }
 
     const [contests, total] = await Promise.all([
@@ -41,41 +37,22 @@ app.get('/api/contests', optionalAuthenticate, async (req, res) => {
         where,
         include: {
           _count: {
-            select: { 
-              participants: true,
-              challenges: true
-            }
+            select: { participants: true, challenges: true }
           }
         },
-        orderBy: { [sortBy as string]: sortOrder },
+        orderBy: { startsAt: 'desc' },
         skip,
         take: limitNum
       }),
       prisma.contest.count({ where })
     ]);
 
-    // Check registration status if user is authenticated
-    let userRegistrations: Record<string, boolean> = {};
-    if (req.user) {
-      const registrations = await prisma.contestParticipant.findMany({
-        where: {
-          userId: req.user.id,
-          contestId: { in: contests.map(c => c.id) }
-        },
-        select: { contestId: true }
-      });
-      userRegistrations = Object.fromEntries(
-        registrations.map(r => [r.contestId, true])
-      );
-    }
-
     res.json({
       success: true,
       contests: contests.map(c => ({
         ...c,
         participantCount: c._count.participants,
-        challengeCount: c._count.challenges,
-        isRegistered: userRegistrations[c.id] || false
+        challengeCount: c._count.challenges
       })),
       pagination: {
         page: pageNum,
@@ -124,7 +101,7 @@ app.get('/api/contests/upcoming', async (req, res) => {
 // Get contest by ID
 app.get('/api/contests/:id', optionalAuthenticate, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const contest = await prisma.contest.findUnique({
       where: { id },
@@ -196,7 +173,7 @@ app.get('/api/contests/:id', optionalAuthenticate, async (req, res) => {
 // Register for contest
 app.post('/api/contests/:id/register', authenticate, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const contest = await prisma.contest.findUnique({
       where: { id },
@@ -261,11 +238,12 @@ app.post('/api/contests/:id/register', authenticate, async (req, res) => {
 // Get contest leaderboard
 app.get('/api/contests/:id/leaderboard', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { page = '1', limit = '50' } = req.query;
+    const id = req.params.id as string;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '50';
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [participants, total] = await Promise.all([
@@ -294,7 +272,7 @@ app.get('/api/contests/:id/leaderboard', async (req, res) => {
         },
         orderBy: [
           { points: 'desc' },
-          { updatedAt: 'asc' }
+          { joinedAt: 'asc' }
         ],
         skip,
         take: limitNum
@@ -308,7 +286,7 @@ app.get('/api/contests/:id/leaderboard', async (req, res) => {
         rank: skip + index + 1,
         user: p.user,
         points: p.points,
-        solvedChallenges: p.submissions.filter(s => s.status === 'ACCEPTED').length,
+        solvedChallenges: p.submissions.filter((s: any) => s.status === 'ACCEPTED').length,
         submissions: p.submissions
       })),
       pagination: {

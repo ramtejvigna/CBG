@@ -19,14 +19,15 @@ app.use(express.json());
 // Search challenges, users, contests
 app.get('/api/search', optionalAuthenticate, async (req, res) => {
   try {
-    const { q, type = 'all', limit = '10' } = req.query;
+    const q = req.query.q as string;
+    const type = (req.query.type as string) || 'all';
+    const limit = req.query.limit as string || '10';
 
-    if (!q || (q as string).length < 2) {
+    if (!q || q.length < 2) {
       return res.status(400).json({ message: 'Search query must be at least 2 characters' });
     }
 
-    const searchQuery = q as string;
-    const limitNum = Math.min(parseInt(limit as string), 50);
+    const limitNum = Math.min(parseInt(limit), 50);
 
     const results: any = {};
 
@@ -34,16 +35,14 @@ app.get('/api/search', optionalAuthenticate, async (req, res) => {
     if (type === 'all' || type === 'challenges') {
       results.challenges = await prisma.challenge.findMany({
         where: {
-          isActive: true,
           OR: [
-            { title: { contains: searchQuery, mode: 'insensitive' } },
-            { description: { contains: searchQuery, mode: 'insensitive' } }
+            { title: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } }
           ]
         },
         select: {
           id: true,
           title: true,
-          slug: true,
           difficulty: true,
           points: true,
           category: { select: { name: true } }
@@ -56,8 +55,8 @@ app.get('/api/search', optionalAuthenticate, async (req, res) => {
       results.users = await prisma.user.findMany({
         where: {
           OR: [
-            { username: { contains: searchQuery, mode: 'insensitive' } },
-            { name: { contains: searchQuery, mode: 'insensitive' } }
+            { username: { contains: q, mode: 'insensitive' } },
+            { name: { contains: q, mode: 'insensitive' } }
           ]
         },
         select: {
@@ -65,7 +64,7 @@ app.get('/api/search', optionalAuthenticate, async (req, res) => {
           username: true,
           name: true,
           image: true,
-          profile: {
+          userProfile: {
             select: { points: true, level: true }
           }
         },
@@ -77,8 +76,8 @@ app.get('/api/search', optionalAuthenticate, async (req, res) => {
       results.contests = await prisma.contest.findMany({
         where: {
           OR: [
-            { title: { contains: searchQuery, mode: 'insensitive' } },
-            { description: { contains: searchQuery, mode: 'insensitive' } }
+            { title: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } }
           ]
         },
         select: {
@@ -94,7 +93,7 @@ app.get('/api/search', optionalAuthenticate, async (req, res) => {
 
     res.json({
       success: true,
-      query: searchQuery,
+      query: q,
       results
     });
   } catch (error) {

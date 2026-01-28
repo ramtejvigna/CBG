@@ -17,42 +17,36 @@ app.use(cors({
 
 app.use(express.json());
 
-// Get all challenges with pagination and filters
+// Get all challenges
 app.get('/api/challenges', optionalAuthenticate, async (req, res) => {
   try {
-    const { 
-      page = '1', 
-      limit = '10', 
-      difficulty, 
-      category, 
-      search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '20';
+    const difficulty = req.query.difficulty as string;
+    const categoryId = req.query.categoryId as string;
+    const search = req.query.search as string;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build where clause
-    const where: any = { isActive: true };
-    
+    const where: any = {};
+
     if (difficulty) {
-      where.difficulty = difficulty;
+      where.difficulty = difficulty.toUpperCase();
     }
-    
-    if (category) {
-      where.categoryId = category;
+
+    if (categoryId) {
+      where.categoryId = categoryId;
     }
-    
+
     if (search) {
       where.OR = [
-        { title: { contains: search as string, mode: 'insensitive' } },
-        { description: { contains: search as string, mode: 'insensitive' } }
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
     }
 
-    // Get challenges with count
     const [challenges, total] = await Promise.all([
       prisma.challenge.findMany({
         where,
@@ -63,35 +57,33 @@ app.get('/api/challenges', optionalAuthenticate, async (req, res) => {
             select: { submissions: true }
           }
         },
-        orderBy: { [sortBy as string]: sortOrder },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limitNum
       }),
       prisma.challenge.count({ where })
     ]);
 
-    // If user is authenticated, get their submission status
-    let userSubmissions: any = {};
+    // Get user's solved challenges if authenticated
+    let solvedChallengeIds: string[] = [];
     if (req.user) {
-      const submissions = await prisma.submission.findMany({
+      const solvedSubmissions = await prisma.submission.findMany({
         where: {
           userId: req.user.id,
-          challengeId: { in: challenges.map(c => c.id) },
           status: 'ACCEPTED'
         },
-        select: { challengeId: true }
+        select: { challengeId: true },
+        distinct: ['challengeId']
       });
-      userSubmissions = Object.fromEntries(
-        submissions.map(s => [s.challengeId, true])
-      );
+      solvedChallengeIds = solvedSubmissions.map(s => s.challengeId);
     }
 
     res.json({
       success: true,
       challenges: challenges.map(c => ({
         ...c,
-        solved: userSubmissions[c.id] || false,
-        submissionCount: c._count.submissions
+        submissionCount: c._count.submissions,
+        solved: solvedChallengeIds.includes(c.id)
       })),
       pagination: {
         page: pageNum,
@@ -109,7 +101,7 @@ app.get('/api/challenges', optionalAuthenticate, async (req, res) => {
 // Get challenge by ID
 app.get('/api/challenges/:id', optionalAuthenticate, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const challenge = await prisma.challenge.findUnique({
       where: { id },
@@ -156,63 +148,15 @@ app.get('/api/challenges/:id', optionalAuthenticate, async (req, res) => {
   }
 });
 
-// Get challenge by slug
-app.get('/api/challenges/slug/:slug', optionalAuthenticate, async (req, res) => {
-  try {
-    const { slug } = req.params;
-
-    const challenge = await prisma.challenge.findUnique({
-      where: { slug },
-      include: {
-        category: true,
-        languages: true,
-        testCases: {
-          where: { isHidden: false }
-        },
-        _count: {
-          select: { submissions: true }
-        }
-      }
-    });
-
-    if (!challenge) {
-      return res.status(404).json({ message: 'Challenge not found' });
-    }
-
-    let userSubmission = null;
-    if (req.user) {
-      userSubmission = await prisma.submission.findFirst({
-        where: {
-          userId: req.user.id,
-          challengeId: challenge.id,
-          status: 'ACCEPTED'
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-    }
-
-    res.json({
-      success: true,
-      challenge: {
-        ...challenge,
-        solved: !!userSubmission,
-        submissionCount: challenge._count.submissions
-      }
-    });
-  } catch (error) {
-    console.error('Get challenge by slug error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
 // Get challenge submissions
 app.get('/api/challenges/:id/submissions', authenticate, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { page = '1', limit = '10' } = req.query;
+    const id = req.params.id as string;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '10';
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [submissions, total] = await Promise.all([
@@ -252,52 +196,54 @@ app.get('/api/challenges/:id/submissions', authenticate, async (req, res) => {
   }
 });
 
-// Get submissions with query params
-app.get('/api/challenges/submissions', authenticate, async (req, res) => {
+// Like/Unlike challenge
+app.post('/api/challenges/:id/like', authenticate, async (req, res) => {
   try {
-    const { challengeId, page = '1', limit = '10' } = req.query;
+    const id = req.params.id as string;
+    const { isLike } = req.body;
 
-    if (!challengeId) {
-      return res.status(400).json({ message: 'Challenge ID is required' });
-    }
-
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    const [submissions, total] = await Promise.all([
-      prisma.submission.findMany({
-        where: { 
-          challengeId: challengeId as string,
-          userId: req.user!.id
-        },
-        include: {
-          language: true
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNum
-      }),
-      prisma.submission.count({
-        where: { 
-          challengeId: challengeId as string,
-          userId: req.user!.id
+    const existingLike = await prisma.challengeLike.findUnique({
+      where: {
+        userId_challengeId: {
+          userId: req.user!.id,
+          challengeId: id
         }
-      })
-    ]);
-
-    res.json({
-      success: true,
-      submissions,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
       }
     });
+
+    if (existingLike) {
+      if (existingLike.isLike === isLike) {
+        // Remove like/dislike
+        await prisma.challengeLike.delete({
+          where: { id: existingLike.id }
+        });
+      } else {
+        // Update like/dislike
+        await prisma.challengeLike.update({
+          where: { id: existingLike.id },
+          data: { isLike }
+        });
+      }
+    } else {
+      // Create new like/dislike
+      await prisma.challengeLike.create({
+        data: {
+          userId: req.user!.id,
+          challengeId: id,
+          isLike
+        }
+      });
+    }
+
+    // Get updated counts
+    const [likes, dislikes] = await Promise.all([
+      prisma.challengeLike.count({ where: { challengeId: id, isLike: true } }),
+      prisma.challengeLike.count({ where: { challengeId: id, isLike: false } })
+    ]);
+
+    res.json({ success: true, likes, dislikes });
   } catch (error) {
-    console.error('Get submissions error:', error);
+    console.error('Like challenge error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

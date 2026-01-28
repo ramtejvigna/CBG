@@ -25,7 +25,7 @@ app.get('/api/categories', async (req, res) => {
       return res.json({ success: true, categories: cached });
     }
 
-    const categories = await prisma.category.findMany({
+    const categories = await prisma.challengeCategory.findMany({
       include: {
         _count: {
           select: { challenges: true }
@@ -34,7 +34,7 @@ app.get('/api/categories', async (req, res) => {
       orderBy: { name: 'asc' }
     });
 
-    const formattedCategories = categories.map(c => ({
+    const formattedCategories = categories.map((c: any) => ({
       ...c,
       challengeCount: c._count.challenges
     }));
@@ -52,17 +52,15 @@ app.get('/api/categories', async (req, res) => {
 // Get category by ID
 app.get('/api/categories/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
-    const category = await prisma.category.findUnique({
+    const category = await prisma.challengeCategory.findUnique({
       where: { id },
       include: {
         challenges: {
-          where: { isActive: true },
           select: {
             id: true,
             title: true,
-            slug: true,
             difficulty: true,
             points: true
           }

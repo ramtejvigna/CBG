@@ -3,7 +3,7 @@ import serverless from 'serverless-http';
 import cors from 'cors';
 import prisma from '../lib/prisma.js';
 import { authenticate } from '../middleware/auth.js';
-import { cache, CACHE_KEYS } from '../lib/cache.js';
+import { cache } from '../lib/cache.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
@@ -33,7 +33,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { profile: true }
+      include: { userProfile: true }
     });
 
     if (!user || !user.password) {
@@ -109,7 +109,7 @@ app.post('/api/auth/signup', async (req, res) => {
         name: name || username,
         password: hashedPassword,
         role: 'USER',
-        profile: {
+        userProfile: {
           create: {
             bio: 'No bio provided',
             solved: 0,
@@ -120,7 +120,7 @@ app.post('/api/auth/signup', async (req, res) => {
           }
         }
       },
-      include: { profile: true }
+      include: { userProfile: true }
     });
 
     // Create session
@@ -173,7 +173,7 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      include: { profile: true }
+      include: { userProfile: true }
     });
 
     if (!user) {
@@ -198,7 +198,8 @@ app.post('/api/auth/complete-onboarding', authenticate, async (req, res) => {
         where: { id: req.user!.id },
         data: { 
           name: name || req.user!.name,
-          isVerified: true 
+          needsOnboarding: false,
+          emailVerified: new Date()
         }
       }),
       prisma.userProfile.upsert({
@@ -246,18 +247,18 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    await prisma.user.update({
-      where: { id: user.id },
+    // Use PasswordResetToken model
+    await prisma.passwordResetToken.create({
       data: {
-        resetToken,
-        resetTokenExpires: resetExpires
+        email: user.email,
+        token: resetToken,
+        expires
       }
     });
 
     // TODO: Send email with reset link
-    // For now, just log the token in development
     if (process.env.NODE_ENV === 'development') {
       console.log(`Reset token for ${email}: ${resetToken}`);
     }
@@ -278,32 +279,41 @@ app.post('/api/auth/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Token and password are required' });
     }
 
-    const user = await prisma.user.findFirst({
+    const resetToken = await prisma.passwordResetToken.findFirst({
       where: {
-        resetToken: token,
-        resetTokenExpires: { gt: new Date() }
+        token,
+        expires: { gt: new Date() },
+        used: false
       }
     });
 
-    if (!user) {
+    if (!resetToken) {
       return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: resetToken.email }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'User not found' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetToken: null,
-        resetTokenExpires: null
-      }
-    });
-
-    // Invalidate all sessions
-    await prisma.session.deleteMany({
-      where: { userId: user.id }
-    });
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword }
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { used: true }
+      }),
+      prisma.session.deleteMany({
+        where: { userId: user.id }
+      })
+    ]);
 
     res.json({ success: true, message: 'Password reset successfully' });
   } catch (error) {
@@ -321,41 +331,18 @@ app.post('/api/auth/validate-reset-token', async (req, res) => {
       return res.status(400).json({ valid: false, message: 'Token is required' });
     }
 
-    const user = await prisma.user.findFirst({
+    const resetToken = await prisma.passwordResetToken.findFirst({
       where: {
-        resetToken: token,
-        resetTokenExpires: { gt: new Date() }
+        token,
+        expires: { gt: new Date() },
+        used: false
       }
     });
 
-    res.json({ valid: !!user });
+    res.json({ valid: !!resetToken });
   } catch (error) {
     console.error('Validate token error:', error);
     res.status(500).json({ valid: false, message: 'Internal server error' });
-  }
-});
-
-// Get session token by user ID (for internal use)
-app.get('/api/auth/session-token/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const session = await prisma.session.findFirst({
-      where: {
-        userId,
-        expires: { gt: new Date() }
-      },
-      orderBy: { expires: 'desc' }
-    });
-
-    if (!session) {
-      return res.status(404).json({ message: 'No valid session found' });
-    }
-
-    res.json({ token: session.sessionToken });
-  } catch (error) {
-    console.error('Get session token error:', error);
-    res.status(500).json({ message: 'Internal server error' });
   }
 });
 

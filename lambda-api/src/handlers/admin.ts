@@ -2,7 +2,7 @@ import express from 'express';
 import serverless from 'serverless-http';
 import cors from 'cors';
 import prisma from '../lib/prisma.js';
-import { authenticateAdmin } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 
 const app = express();
 
@@ -14,12 +14,21 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json());
 
-// All admin routes require admin authentication
-app.use('/api/admin', authenticateAdmin);
+// Admin middleware
+const adminOnly = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.user || req.user.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
+};
 
-// Get dashboard statistics
+// Apply auth to all routes
+app.use(authenticate);
+app.use(adminOnly);
+
+// Get admin dashboard stats
 app.get('/api/admin/dashboard', async (req, res) => {
   try {
     const [
@@ -34,41 +43,27 @@ app.get('/api/admin/dashboard', async (req, res) => {
       prisma.challenge.count(),
       prisma.submission.count(),
       prisma.contest.count(),
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          createdAt: true
-        }
+      prisma.user.count({
+        where: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
       }),
-      prisma.submission.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        include: {
-          user: { select: { username: true } },
-          challenge: { select: { title: true } }
-        }
+      prisma.submission.count({
+        where: { createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }
       })
     ]);
 
     res.json({
       success: true,
       dashboard: {
-        stats: {
-          totalUsers,
-          totalChallenges,
-          totalSubmissions,
-          totalContests
-        },
+        totalUsers,
+        totalChallenges,
+        totalSubmissions,
+        totalContests,
         recentUsers,
         recentSubmissions
       }
     });
   } catch (error) {
-    console.error('Admin dashboard error:', error);
+    console.error('Get admin dashboard error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -76,18 +71,20 @@ app.get('/api/admin/dashboard', async (req, res) => {
 // Get all users (admin)
 app.get('/api/admin/users', async (req, res) => {
   try {
-    const { page = '1', limit = '20', search } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '20';
+    const search = req.query.search as string;
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const where: any = {};
     if (search) {
       where.OR = [
-        { username: { contains: search as string, mode: 'insensitive' } },
-        { email: { contains: search as string, mode: 'insensitive' } },
-        { name: { contains: search as string, mode: 'insensitive' } }
+        { username: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -95,7 +92,7 @@ app.get('/api/admin/users', async (req, res) => {
       prisma.user.findMany({
         where,
         include: {
-          profile: true,
+          userProfile: true,
           _count: {
             select: { submissions: true }
           }
@@ -128,10 +125,10 @@ app.get('/api/admin/users', async (req, res) => {
 });
 
 // Update user role
-app.put('/api/admin/users/:id/role', async (req, res) => {
+app.put('/api/admin/users/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { role } = req.body;
+    const id = req.params.id as string;
+    const { name, email, role } = req.body;
 
     if (!['USER', 'ADMIN'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role' });
@@ -139,10 +136,10 @@ app.put('/api/admin/users/:id/role', async (req, res) => {
 
     const user = await prisma.user.update({
       where: { id },
-      data: { role }
+      data: { name, email, role }
     });
 
-    res.json({ success: true, user });
+    res.json({ success: true, message: "User updated successfully", user });
   } catch (error) {
     console.error('Update user role error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -152,42 +149,92 @@ app.put('/api/admin/users/:id/role', async (req, res) => {
 // Get all challenges (admin)
 app.get('/api/admin/challenges', async (req, res) => {
   try {
-    const { page = '1', limit = '20' } = req.query;
+        if (!req.user || req.user.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
+        const { page = 1, limit = 20, search, difficulty, category, status } = req.query;
+        const pageNum = parseInt(page as string);
+        const limitNum = parseInt(limit as string);
+        const offset = (pageNum - 1) * limitNum;
 
-    const [challenges, total] = await Promise.all([
-      prisma.challenge.findMany({
-        include: {
-          category: true,
-          languages: true,
-          _count: {
-            select: { submissions: true, testCases: true }
-          }
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limitNum
-      }),
-      prisma.challenge.count()
-    ]);
+        // Build where clause
+        const where: any = {};
+        
+        if (search) {
+            where.OR = [
+                { title: { contains: search as string, mode: 'insensitive' } },
+                { description: { contains: search as string, mode: 'insensitive' } }
+            ];
+        }
+        
+        if (difficulty) {
+            where.difficulty = difficulty;
+        }
 
-    res.json({
-      success: true,
-      challenges,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum)
-      }
-    });
-  } catch (error) {
-    console.error('Get admin challenges error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
+        if (category) {
+            where.categoryId = category;
+        }
+
+        const challenges = await prisma.challenge.findMany({
+            where,
+            include: {
+                category: {
+                    select: { id: true, name: true }
+                },
+                creator: {
+                    select: { name: true, username: true }
+                },
+                _count: {
+                    select: {
+                        submissions: true,
+                        testCases: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            },
+            skip: offset,
+            take: limitNum
+        });
+
+        const totalChallenges = await prisma.challenge.count({ where });
+
+        // Calculate acceptance rate for each challenge
+        const challengesWithStats = await Promise.all(challenges.map(async (challenge) => {
+            const totalSubmissions = challenge._count.submissions;
+            const acceptedSubmissions = await prisma.submission.count({
+                where: {
+                    challengeId: challenge.id,
+                    status: 'ACCEPTED'
+                }
+            });
+
+            const acceptanceRate = totalSubmissions > 0 ? ((acceptedSubmissions / totalSubmissions) * 100) : 0;
+
+            return {
+                ...challenge,
+                submissions: totalSubmissions,
+                acceptanceRate: Math.round(acceptanceRate * 10) / 10,
+                testCases: challenge._count.testCases,
+                status: 'published' // You can add a status field to challenge model if needed
+            };
+        }));
+
+        res.json({
+            challenges: challengesWithStats,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total: totalChallenges,
+                pages: Math.ceil(totalChallenges / limitNum)
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching challenges for admin:', error);
+        res.status(500).json({ message: 'Internal server error', error });
+    }
 });
 
 // Create challenge
@@ -195,7 +242,6 @@ app.post('/api/admin/challenges', async (req, res) => {
   try {
     const {
       title,
-      slug,
       description,
       difficulty,
       points,
@@ -203,29 +249,24 @@ app.post('/api/admin/challenges', async (req, res) => {
       memoryLimit,
       categoryId,
       languageIds,
-      testCases,
-      starterCode,
-      constraints
+      testCases
     } = req.body;
 
     // Validate required fields
-    if (!title || !slug || !description || !difficulty || !categoryId) {
+    if (!title || !description || !difficulty || !categoryId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
     const challenge = await prisma.challenge.create({
       data: {
         title,
-        slug,
         description,
         difficulty,
         points: points || 100,
         timeLimit: timeLimit || 5,
         memoryLimit: memoryLimit || 256,
         categoryId,
-        starterCode,
-        constraints,
-        isActive: true,
+        creatorId: req.user!.id,
         languages: languageIds ? {
           connect: languageIds.map((id: string) => ({ id }))
         } : undefined,
@@ -254,18 +295,30 @@ app.post('/api/admin/challenges', async (req, res) => {
 // Update challenge
 app.put('/api/admin/challenges/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    // Handle language updates separately
-    const { languageIds, testCases, ...data } = updateData;
+    const id = req.params.id as string;
+    const {
+      title,
+      description,
+      difficulty,
+      points,
+      timeLimit,
+      memoryLimit,
+      categoryId,
+      languageIds
+    } = req.body;
 
     const challenge = await prisma.challenge.update({
       where: { id },
       data: {
-        ...data,
+        title,
+        description,
+        difficulty,
+        points,
+        timeLimit,
+        memoryLimit,
+        categoryId,
         languages: languageIds ? {
-          set: languageIds.map((lid: string) => ({ id: lid }))
+          set: languageIds.map((id: string) => ({ id }))
         } : undefined
       },
       include: {
@@ -285,9 +338,11 @@ app.put('/api/admin/challenges/:id', async (req, res) => {
 // Delete challenge
 app.delete('/api/admin/challenges/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
-    await prisma.challenge.delete({ where: { id } });
+    await prisma.challenge.delete({
+      where: { id }
+    });
 
     res.json({ success: true, message: 'Challenge deleted' });
   } catch (error) {
@@ -299,10 +354,11 @@ app.delete('/api/admin/challenges/:id', async (req, res) => {
 // Get all contests (admin)
 app.get('/api/admin/contests', async (req, res) => {
   try {
-    const { page = '1', limit = '20' } = req.query;
+    const page = req.query.page as string || '1';
+    const limit = req.query.limit as string || '20';
 
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
     const [contests, total] = await Promise.all([
@@ -345,10 +401,10 @@ app.post('/api/admin/contests', async (req, res) => {
       endsAt,
       registrationEnd,
       maxParticipants,
-      challengeIds
+      tags
     } = req.body;
 
-    if (!title || !startsAt || !endsAt) {
+    if (!title || !description || !startsAt || !endsAt || !registrationEnd) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -358,21 +414,11 @@ app.post('/api/admin/contests', async (req, res) => {
         description,
         startsAt: new Date(startsAt),
         endsAt: new Date(endsAt),
-        registrationEnd: registrationEnd ? new Date(registrationEnd) : undefined,
+        registrationEnd: new Date(registrationEnd),
         maxParticipants,
-        status: 'UPCOMING',
-        challenges: challengeIds ? {
-          create: challengeIds.map((cid: string, index: number) => ({
-            challengeId: cid,
-            order: index + 1,
-            points: 100
-          }))
-        } : undefined
-      },
-      include: {
-        challenges: {
-          include: { challenge: true }
-        }
+        tags: tags || [],
+        creatorId: req.user!.id,
+        status: 'UPCOMING'
       }
     });
 
@@ -386,20 +432,29 @@ app.post('/api/admin/contests', async (req, res) => {
 // Update contest
 app.put('/api/admin/contests/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { challengeIds, ...updateData } = req.body;
-
-    // Convert date strings to Date objects
-    if (updateData.startsAt) updateData.startsAt = new Date(updateData.startsAt);
-    if (updateData.endsAt) updateData.endsAt = new Date(updateData.endsAt);
-    if (updateData.registrationEnd) updateData.registrationEnd = new Date(updateData.registrationEnd);
+    const id = req.params.id as string;
+    const {
+      title,
+      description,
+      startsAt,
+      endsAt,
+      registrationEnd,
+      maxParticipants,
+      tags,
+      status
+    } = req.body;
 
     const contest = await prisma.contest.update({
       where: { id },
-      data: updateData,
-      include: {
-        challenges: { include: { challenge: true } },
-        _count: { select: { participants: true } }
+      data: {
+        title,
+        description,
+        startsAt: startsAt ? new Date(startsAt) : undefined,
+        endsAt: endsAt ? new Date(endsAt) : undefined,
+        registrationEnd: registrationEnd ? new Date(registrationEnd) : undefined,
+        maxParticipants,
+        tags,
+        status
       }
     });
 
@@ -413,9 +468,11 @@ app.put('/api/admin/contests/:id', async (req, res) => {
 // Delete contest
 app.delete('/api/admin/contests/:id', async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
-    await prisma.contest.delete({ where: { id } });
+    await prisma.contest.delete({
+      where: { id }
+    });
 
     res.json({ success: true, message: 'Contest deleted' });
   } catch (error) {
