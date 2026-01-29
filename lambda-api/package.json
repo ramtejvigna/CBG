@@ -4,7 +4,7 @@
   "description": "CBG API Lambda Functions",
   "type": "module",
   "scripts": {
-    "build": "tsc && cp -r src/prisma dist/",
+    "build": "tsc && cp -r prisma dist/",
     "deploy": "npm run build && serverless deploy",
     "deploy:prod": "npm run build && serverless deploy --stage prod",
     "remove": "serverless remove",

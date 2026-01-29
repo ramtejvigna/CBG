@@ -156,7 +156,7 @@ app.post('/api/auth/signup', async (req, res) => {
       sessionToken = existingSession.sessionToken;
     } else {
       // Create session
-      const sessionToken = generateSessionToken();
+      sessionToken = generateSessionToken();
       const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       await prisma.session.create({

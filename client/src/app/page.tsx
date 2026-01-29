@@ -27,13 +27,15 @@ interface Challenge {
 }
 
 interface LeaderboardUser {
+  rank: number;
+  id: string;
+  username: string;
+  name?: string;
+  image?: string;
   points: number;
-  user: {
-    id: string;
-    username: string;
-    name?: string;
-    image?: string;
-  };
+  solved: number;
+  level: number;
+  streakDays: number;
 }
 
 const Home = () => {
@@ -67,7 +69,7 @@ const Home = () => {
         throw new Error('Failed to fetch leaderboard');
       }
       const data = await response.json();
-      setLeaderboardData(data);
+      setLeaderboardData(data.leaderboard || []);
     } catch (err) {
       console.error('Failed to fetch leaderboard:', err instanceof Error ? err.message : err);
     }
@@ -228,41 +230,49 @@ const Home = () => {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {activeChallenges.map((challenge, index) => (
-              <div
-                key={index}
-                className={`${theme === "dark" ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-400"} border  rounded-lg p-4 transition-all duration-300 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-900/20 ${index === currentChallenge ? "border-orange-500 shadow-lg shadow-orange-900/20 scale-105" : ""
-                  }`}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${challenge.difficulty === "Hard"
-                      ? "bg-red-500/20 text-red-400"
-                      : challenge.difficulty === "Medium"
-                        ? "bg-yellow-500/20 text-yellow-400"
-                        : "bg-purple-500/20 text-purple-400"}`}
-                  >
-                    {challenge.difficulty}
-                  </span>
-                  <Code className="text-gray-500" />
-                </div>
-
-                <h3 className="font-bold text-lg mb-3">{challenge.title}</h3>
-
-                <div className="flex items-center justify-between text-sm text-gray-400">
-                  <div className="flex items-center">
-                    <Users className="w-4 h-4 mr-1" />
-                    {challenge._count.submissions}
+          {activeChallenges.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {activeChallenges.map((challenge, index) => (
+                <div
+                  key={index}
+                  className={`${theme === "dark" ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-400"} border  rounded-lg p-4 transition-all duration-300 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-900/20 ${index === currentChallenge ? "border-orange-500 shadow-lg shadow-orange-900/20 scale-105" : ""
+                    }`}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${challenge.difficulty === "Hard"
+                        ? "bg-red-500/20 text-red-400"
+                        : challenge.difficulty === "Medium"
+                          ? "bg-yellow-500/20 text-yellow-400"
+                          : "bg-purple-500/20 text-purple-400"}`}
+                    >
+                      {challenge.difficulty}
+                    </span>
+                    <Code className="text-gray-500" />
                   </div>
-                  <div className="flex items-center">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {challenge.timeLeft}
+
+                  <h3 className="font-bold text-lg mb-3">{challenge.title}</h3>
+
+                  <div className="flex items-center justify-between text-sm text-gray-400">
+                    <div className="flex items-center">
+                      <Users className="w-4 h-4 mr-1" />
+                      {challenge._count.submissions}
+                    </div>
+                    <div className="flex items-center">
+                      <Clock className="w-4 h-4 mr-1" />
+                      {challenge.timeLeft}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className={`${theme === "dark" ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-300"} border rounded-xl p-12 text-center`}>
+              <Code className={`w-16 h-16 mx-auto mb-4 ${theme === "dark" ? "text-gray-600" : "text-gray-400"}`} />
+              <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>No Active Challenges</h3>
+              <p className={`${theme === "dark" ? "text-gray-500" : "text-gray-500"} mb-4`}>Check back soon for new coding challenges!</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -278,37 +288,45 @@ const Home = () => {
           </button>
         </div>
 
-        <div
-          className={`${theme === "dark" ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-400/50"} rounded-xl overflow-hidden`}
-        >
-          <table className="w-full">
-            <thead>
-              <tr
-                className={`${theme === "dark" ? "bg-gray-800/70 border border-gray-700" : "bg-white border border-gray-400/50"} text-left`}
-              >
-                <th className="py-4 px-6">Rank</th>
-                <th className="py-4 px-6">Warrior</th>
-                <th className="py-4 px-6">Points</th>
-                <th className="py-4 px-6 text-right">Badge</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboardData.map((player, index) => (
+        {leaderboardData.length > 0 ? (
+          <div
+            className={`${theme === "dark" ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-400/50"} rounded-xl overflow-hidden`}
+          >
+            <table className="w-full">
+              <thead>
                 <tr
-                  key={player.user.id}
-                  className={`border-t border-gray-700 hover:bg-gray-750 transition-colors`}
+                  className={`${theme === "dark" ? "bg-gray-800/70 border border-gray-700" : "bg-white border border-gray-400/50"} text-left`}
                 >
-                  <td className="py-4 px-6 font-mono">{index + 1}</td>
-                  <td className="py-4 px-6 font-semibold">{player.user.username}</td>
-                  <td className="py-4 px-6 text-orange-400 font-mono">{player.points.toLocaleString()}</td>
-                  <td className="py-4 px-6 text-right">
-                    {index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⭐"}
-                  </td>
+                  <th className="py-4 px-6">Rank</th>
+                  <th className="py-4 px-6">Warrior</th>
+                  <th className="py-4 px-6">Points</th>
+                  <th className="py-4 px-6 text-right">Badge</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {leaderboardData.map((player, index) => (
+                  <tr
+                    key={player.id}
+                    className={`border-t border-gray-700 hover:bg-gray-750 transition-colors`}
+                  >
+                    <td className="py-4 px-6 font-mono">{player.rank}</td>
+                    <td className="py-4 px-6 font-semibold">{player.username}</td>
+                    <td className="py-4 px-6 text-orange-400 font-mono">{player.points.toLocaleString()}</td>
+                    <td className="py-4 px-6 text-right">
+                      {index === 0 ? "🏆" : index === 1 ? "🥈" : index === 2 ? "🥉" : "⭐"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className={`${theme === "dark" ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-300"} border rounded-xl p-12 text-center`}>
+            <Users className={`w-16 h-16 mx-auto mb-4 ${theme === "dark" ? "text-gray-600" : "text-gray-400"}`} />
+            <h3 className={`text-xl font-semibold mb-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>No Warriors Yet</h3>
+            <p className={`${theme === "dark" ? "text-gray-500" : "text-gray-500"} mb-4`}>Be the first to climb the leaderboard!</p>
+          </div>
+        )}
       </div>
     </div>
   )
