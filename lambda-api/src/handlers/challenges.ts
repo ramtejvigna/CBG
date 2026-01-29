@@ -98,6 +98,35 @@ app.get('/api/challenges', optionalAuthenticate, async (req, res) => {
   }
 });
 
+app.get('/api/challenges/home', async (req: Request, res: Respect) => {
+  try {
+    const challenges = await prisma.challenge.findMany({
+      take: 4,
+      select: {
+        id: true,
+        title: true,
+        difficulty: true,
+        points: true,
+        description: true,
+        createdAt: true,
+        _count: {
+          select: {
+            submissions: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+  } catch (error) {
+    res.json({
+      message: 'Internal server error',
+      error
+    })
+  }
+})
+
 // Get challenge by ID
 app.get('/api/challenges/:id', optionalAuthenticate, async (req, res) => {
   try {

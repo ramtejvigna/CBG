@@ -22,6 +22,21 @@ app.use(express.json());
 // Generate session token
 const generateSessionToken = () => crypto.randomBytes(32).toString('hex');
 
+const getValidSession = async (userId: string) => {
+    const existingSession = await prisma.session.findFirst({
+        where: {
+            userId,
+            expires: {
+                gt: new Date() // Session expires after current date
+            }
+        },
+        orderBy: {
+            expires: 'desc' // Get the session with the latest expiry
+        }
+    });
+    return existingSession;
+};
+
 // Login
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -32,38 +47,45 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: { userProfile: true }
+      where: { email: email },
+      include: { userProfile: true, accounts: true }
     });
 
     if (!user || !user.password) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Create session
-    const sessionToken = generateSessionToken();
-    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    let sessionToken: string;
+    const existingSession = await getValidSession(user.id);
 
-    await prisma.session.create({
-      data: {
-        sessionToken,
-        userId: user.id,
-        expires
-      }
-    });
+    if (existingSession) {
+      sessionToken = existingSession.sessionToken;
+    } else {
+      sessionToken = generateSessionToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      await prisma.session.create({
+        data: {
+          sessionToken,
+          userId: user.id,
+          expires
+        }
+      });
+    }
 
     const { password: _, ...userWithoutPassword } = user;
 
+    const { image, ...userWithoutImage } = userWithoutPassword;
+
     res.json({
       success: true,
-      user: userWithoutPassword,
-      token: sessionToken,
-      expiresAt: expires.toISOString()
+      user: userWithoutImage,
+      token: sessionToken
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -74,9 +96,9 @@ app.post('/api/auth/login', async (req, res) => {
 // Signup
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, password, username, name } = req.body;
+    const { email, password, username, fullName, preferredLanguage } = req.body;
 
-    if (!email || !password || !username) {
+    if (!email || !password || !username || !fullName) {
       return res.status(400).json({ message: 'Email, password, and username are required' });
     }
 
@@ -84,15 +106,15 @@ app.post('/api/auth/signup', async (req, res) => {
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: email.toLowerCase() },
-          { username: username.toLowerCase() }
+          { email: email },
+          { username: username }
         ]
       }
     });
 
     if (existingUser) {
       return res.status(409).json({ 
-        message: existingUser.email === email.toLowerCase() 
+        message: existingUser.email === email
           ? 'Email already registered' 
           : 'Username already taken' 
       });
@@ -104,44 +126,52 @@ app.post('/api/auth/signup', async (req, res) => {
     // Create user with profile
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
-        username: username.toLowerCase(),
-        name: name || username,
+        email: email,
+        username: username,
+        name: fullName || username,
         password: hashedPassword,
         role: 'USER',
         userProfile: {
           create: {
             bio: 'No bio provided',
             solved: 0,
-            preferredLanguage: 'javascript',
+            preferredLanguage: preferredLanguage || 'javascript',
             level: 1,
             points: 0,
             streakDays: 0
           }
         }
       },
-      include: { userProfile: true }
-    });
-
-    // Create session
-    const sessionToken = generateSessionToken();
-    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    await prisma.session.create({
-      data: {
-        sessionToken,
-        userId: user.id,
-        expires
-      }
+      include: { userProfile: true, accounts: true }
     });
 
     const { password: _, ...userWithoutPassword } = user;
 
+    const { image, ...userWithoutImage } = userWithoutPassword;
+
+    let sessionToken: string;
+    const existingSession = await getValidSession(user.id);
+
+    if (existingSession) {
+      sessionToken = existingSession.sessionToken;
+    } else {
+      // Create session
+      const sessionToken = generateSessionToken();
+      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      await prisma.session.create({
+        data: {
+          sessionToken,
+          userId: user.id,
+          expires
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
-      user: userWithoutPassword,
+      user: userWithoutImage,
       token: sessionToken,
-      expiresAt: expires.toISOString()
     });
   } catch (error) {
     console.error('Signup error:', error);
@@ -181,7 +211,8 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
     }
 
     const { password: _, ...userWithoutPassword } = user;
-    res.json({ success: true, user: userWithoutPassword });
+    const { image, ...userWithoutImage } = userWithoutPassword; 
+    res.json({ success: true, user: userWithoutImage });
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -191,13 +222,13 @@ app.get('/api/auth/me', authenticate, async (req, res) => {
 // Complete onboarding
 app.post('/api/auth/complete-onboarding', authenticate, async (req, res) => {
   try {
-    const { preferredLanguage, bio, name } = req.body;
+    const { preferredLanguage, bio, fullName } = req.body;
 
     await prisma.$transaction([
       prisma.user.update({
         where: { id: req.user!.id },
         data: { 
-          name: name || req.user!.name,
+          name: fullName || req.user!.name,
           needsOnboarding: false,
           emailVerified: new Date()
         }
