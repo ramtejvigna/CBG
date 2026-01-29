@@ -98,7 +98,7 @@ app.get('/api/challenges', optionalAuthenticate, async (req, res) => {
   }
 });
 
-app.get('/api/challenges/home', async (req: Request, res: Respect) => {
+app.get('/api/challenges/home', async (req, res) => {
   try {
     const challenges = await prisma.challenge.findMany({
       take: 4,
@@ -119,6 +119,8 @@ app.get('/api/challenges/home', async (req: Request, res: Respect) => {
         createdAt: 'desc'
       }
     })
+
+    res.json(challenges);
   } catch (error) {
     res.json({
       message: 'Internal server error',
