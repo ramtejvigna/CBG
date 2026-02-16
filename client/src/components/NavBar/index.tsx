@@ -49,6 +49,8 @@ const NavBar = () => {
 
     const { user, logout, loading } = useAuth();
 
+    console.log('NavBar user:', user);
+
     const handleSearch = useCallback(async (query: string) => {
         if (!query.trim()) {
             setSearchResults(null);

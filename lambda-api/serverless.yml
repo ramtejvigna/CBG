@@ -57,8 +57,10 @@ custom:
   dotenv:
     path: .env
   serverless-offline:
-    httpPort: 3001
+    httpPort: 3003
+    lambdaPort: 3004
     noPrependStageInUrl: true
+    printOutput: true
 
 package:
   individually: true

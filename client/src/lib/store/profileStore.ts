@@ -165,7 +165,7 @@ export const useProfileStore = create<ProfileState>()(
 
           // Use the correct endpoint for updating user profile
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/${userId}/profile`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile`,
             {
               method: 'PUT',
               headers: getAuthHeaders(),

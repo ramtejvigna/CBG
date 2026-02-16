@@ -19,6 +19,25 @@ app.use(cors({
 
 app.use(express.json());
 
+// Middleware to handle body parsing for serverless-offline
+app.use((req, res, next) => {
+  // serverless-offline sometimes passes body as Buffer or string
+  if (Buffer.isBuffer(req.body)) {
+    try {
+      req.body = JSON.parse(req.body.toString('utf8'));
+    } catch (e) {
+      // If parsing fails, leave as-is
+    }
+  } else if (typeof req.body === 'string') {
+    try {
+      req.body = JSON.parse(req.body);
+    } catch (e) {
+      // If parsing fails, leave as-is
+    }
+  }
+  next();
+});
+
 // Generate session token
 const generateSessionToken = () => crypto.randomBytes(32).toString('hex');
 
@@ -85,7 +104,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({
       success: true,
       user: userWithoutImage,
-      token: sessionToken
+      sessionToken: sessionToken
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -96,7 +115,12 @@ app.post('/api/auth/login', async (req, res) => {
 // Signup
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, password, username, fullName, preferredLanguage } = req.body;
+    console.log('Raw body type:', typeof req.body);
+    console.log('Raw body:', req.body);
+    
+    const { email, password, username, fullName, preferredLanguage } = req.body || {};
+
+    console.log('Signup request body: ', { email, username, fullName, preferredLanguage });
 
     if (!email || !password || !username || !fullName) {
       return res.status(400).json({ message: 'Email, password, and username are required' });

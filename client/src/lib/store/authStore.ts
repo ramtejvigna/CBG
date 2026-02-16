@@ -165,15 +165,17 @@ export const useAuthStore = create<AuthState>()(
                         });
                         if (response.ok) {
                             const userData = await response.json();
-                            set({ user: userData });
+                            // Extract the actual user data from the response
+                            const actualUser = userData.user || userData;
+                            set({ user: actualUser });
                             
                             // Also update the profile store with the user data
                             const profileStore = useProfileStore.getState();
-                            if (profileStore && userData) {
+                            if (profileStore && actualUser) {
                                 // Initialize profile store with user data
                                 profileStore.setUserData({
-                                    ...userData,
-                                    userProfile: userData.userProfile || {
+                                    ...actualUser,
+                                    userProfile: actualUser.userProfile || {
                                         id: '',
                                         bio: '',
                                         level: 1,
@@ -184,8 +186,8 @@ export const useAuthStore = create<AuthState>()(
                                         badges: [],
                                         languages: []
                                     },
-                                    createdAt: userData.createdAt || new Date().toISOString(),
-                                    role: userData.role || 'USER'
+                                    createdAt: actualUser.createdAt || new Date().toISOString(),
+                                    role: actualUser.role || 'USER'
                                 });
                                 profileStore.setLoading(false);
                             }

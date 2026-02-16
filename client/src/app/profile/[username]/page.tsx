@@ -241,7 +241,8 @@ const ProfilePage = () => {
         }
 
         const data = await response.json();
-        setUserData(data);
+        // Extract the actual user data from the response
+        setUserData(data.user || data);
 
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load user profile');
