@@ -18,87 +18,15 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Debug secrets availability
-      run: |
-        echo "🔍 Checking if ENVIRONMENT secrets are available..."
-        echo "Environment: production"
-        if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
-          echo "❌ ERROR: DOCKER_USERNAME environment secret is not set"
-          echo "📝 Please ensure DOCKER_USERNAME is added to Environment 'production' secrets"
-          echo "🔗 Go to: Repository Settings > Environments > production > Environment secrets"
-          exit 1
-        else
-          echo "✅ DOCKER_USERNAME environment secret is available"
-          echo "Username length: ${#DOCKER_USERNAME} characters"
-        fi
-        
-        if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
-          echo "❌ ERROR: DOCKER_PASSWORD environment secret is not set"
-          echo "📝 Please ensure DOCKER_PASSWORD is added to Environment 'production' secrets"
-          echo "🔗 Go to: Repository Settings > Environments > production > Environment secrets"
-          exit 1
-        else
-          echo "✅ DOCKER_PASSWORD environment secret is available"
-          echo "Password length: ${#DOCKER_PASSWORD} characters"
-          echo "Password starts with: ${DOCKER_PASSWORD:0:8}..."
-        fi
-        echo "🎉 All environment secrets are properly configured!"
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Clean and validate credentials
-      run: |
-        echo "🧹 Cleaning and validating credentials..."
-        
-        # Clean whitespace from secrets
-        CLEAN_USERNAME=$(echo "$DOCKER_USERNAME" | tr -d '[:space:]')
-        CLEAN_PASSWORD=$(echo "$DOCKER_PASSWORD" | tr -d '[:space:]')
-        
-        echo "Original username length: ${#DOCKER_USERNAME}"
-        echo "Cleaned username length: ${#CLEAN_USERNAME}"
-        echo "Original password length: ${#DOCKER_PASSWORD}"
-        echo "Cleaned password length: ${#CLEAN_PASSWORD}"
-        
-        # Expected values
-        expected_username="ramtejvigna"
-        echo "Expected username length: ${#expected_username}"
-        
-        if [ "${#CLEAN_USERNAME}" -eq "${#expected_username}" ]; then
-          echo "✅ Username length is correct after cleaning"
-        else
-          echo "❌ Username length still incorrect after cleaning"
-          echo "This suggests the secret contains extra characters"
-        fi
-        
-        # Export cleaned values for next steps
-        echo "CLEAN_DOCKER_USERNAME=$CLEAN_USERNAME" >> $GITHUB_ENV
-        echo "CLEAN_DOCKER_PASSWORD=$CLEAN_PASSWORD" >> $GITHUB_ENV
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
     - name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
-      run: |
-        echo "🔐 Attempting Docker Hub login with cleaned credentials..."
-        echo "Using username: $CLEAN_DOCKER_USERNAME"
-        echo "Username length: ${#CLEAN_DOCKER_USERNAME}"
-        echo "Password length: ${#CLEAN_DOCKER_PASSWORD}"
-        
-        # Try login with cleaned credentials
-        echo "$CLEAN_DOCKER_PASSWORD" | docker login -u "$CLEAN_DOCKER_USERNAME" --password-stdin
-        
-        if [ $? -eq 0 ]; then
-          echo "✅ Docker Hub login successful with cleaned credentials!"
-        else
-          echo "❌ Docker Hub login still failed with cleaned credentials"
-          echo "This suggests the secret values themselves are incorrect"
-          exit 1
-        fi
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Build and push server Docker image
       uses: docker/build-push-action@v5
@@ -106,8 +34,8 @@ jobs:
         context: ./server
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-server:latest
-          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-server:${{ github.sha }}
+          ${{ secrets.DOCKER_USERNAME }}/cbg-server:latest
+          ${{ secrets.DOCKER_USERNAME }}/cbg-server:${{ github.sha }}
         platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -118,8 +46,8 @@ jobs:
         context: ./client
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-client:latest
-          ${{ env.CLEAN_DOCKER_USERNAME }}/cbg-client:${{ github.sha }}
+          ${{ secrets.DOCKER_USERNAME }}/cbg-client:latest
+          ${{ secrets.DOCKER_USERNAME }}/cbg-client:${{ github.sha }}
         platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max

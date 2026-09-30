@@ -1,4 +1,6 @@
-import { PrismaClient, Difficulty, ChallengeType, ActivityType } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { PrismaClient, Prisma, Difficulty, ChallengeType, ActivityType } from '@prisma/client';
+import { STARTER_CODE } from './starterCode.js';
 
 const prisma = new PrismaClient();
 
@@ -61,6 +63,10 @@ async function main() {
     ]);
 
     // Create a demo user for challenge creation
+    const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD;
+    if (!seedAdminPassword || seedAdminPassword.length < 12) {
+        throw new Error('Set SEED_ADMIN_PASSWORD (min 12 chars) before seeding');
+    }
     console.log('Creating demo user...');
     const demoUser = await prisma.user.upsert({
         where: { email: 'admin@cbg.com' },
@@ -70,7 +76,7 @@ async function main() {
             username: 'cbg_admin',
             name: 'CBG Admin',
             role: 'ADMIN',
-            password: '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewVyVzDhV.xwO0tW', // hashed 'password123'
+            password: await bcrypt.hash(seedAdminPassword, 12),
             userProfile: {
                 create: {
                     solved: 0,
@@ -464,6 +470,10 @@ ORDER BY total_revenue DESC`,
             where: { title: challengeData.title }
         });
 
+        // Real, runnable starter code per language, keyed by title (empty for the SQL
+        // challenges below - there's no SQL execution engine in the sandbox yet).
+        const starterCode = STARTER_CODE[challengeData.title] ?? undefined;
+
         if (!existingChallenge) {
             await prisma.challenge.create({
                 data: {
@@ -476,6 +486,7 @@ ORDER BY total_revenue DESC`,
                     timeLimit: challengeData.timeLimit,
                     memoryLimit: challengeData.memoryLimit,
                     creatorId: demoUser.id,
+                    ...(starterCode ? { starterCode: starterCode as unknown as Prisma.InputJsonValue } : {}),
                     languages: {
                         connect: languages.slice(0, 3).map(lang => ({ id: lang.id })) // Connect first 3 languages
                     },
@@ -489,6 +500,16 @@ ORDER BY total_revenue DESC`,
                     }
                 }
             });
+        } else if (starterCode && JSON.stringify(existingChallenge.starterCode) !== JSON.stringify(starterCode)) {
+            // starterCode.ts is the single source of truth for this field - keep an
+            // already-seeded challenge's starter code in sync with it (e.g. after the
+            // editable/locked split was introduced) without touching anything else
+            // (test cases, likes, submissions).
+            await prisma.challenge.update({
+                where: { id: existingChallenge.id },
+                data: { starterCode: starterCode as unknown as Prisma.InputJsonValue }
+            });
+            console.log(`Updated starter code for existing challenge: ${challengeData.title}`);
         }
     }
 
@@ -522,12 +543,16 @@ ORDER BY total_revenue DESC`,
         });
     }
 
-    await prisma.activity.createMany({
-        data: sampleActivities,
-        skipDuplicates: true
-    });
-
-    console.log(`Created ${sampleActivities.length} sample activities`);
+    const existingActivities = await prisma.activity.count({ where: { userId: demoUser.id } });
+    if (existingActivities === 0) {
+        await prisma.activity.createMany({
+            data: sampleActivities,
+            skipDuplicates: true
+        });
+        console.log(`Created ${sampleActivities.length} sample activities`);
+    } else {
+        console.log('Sample activities already exist, skipping');
+    }
 }
 
 main()

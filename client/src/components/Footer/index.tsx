@@ -2,123 +2,105 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Github, Twitter, Linkedin, Code, Heart } from 'lucide-react';
-import { useThemeStore } from '@/lib/store/themeStore';
+import { Github, Twitter, Linkedin, Heart, ArrowUpRight } from 'lucide-react';
+import Logo from '@/components/Logo';
+
+const columns = [
+    {
+        title: 'Practice',
+        links: [
+            { name: 'Problems', href: '/challenges' },
+            { name: 'Contests', href: '/contests' },
+            { name: 'Rankings', href: '/rankings' },
+        ],
+    },
+    {
+        title: 'Community',
+        links: [
+            { name: 'Activity feed', href: '/activity-feed' },
+            { name: 'About', href: '/about' },
+            { name: 'Settings', href: '/settings' },
+        ],
+    },
+];
+
+const socials = [
+    { name: 'GitHub', href: 'https://github.com/ramtejvigna', icon: Github },
+    { name: 'X', href: 'https://x.com/ramtejvigna46', icon: Twitter },
+    { name: 'LinkedIn', href: 'https://www.linkedin.com/in/vignaramtej/', icon: Linkedin },
+];
 
 const Footer = () => {
-    const { theme } = useThemeStore(); 
-
     return (
-        <footer className={`${theme === 'dark' ? 'bg-black text-gray-300' : 'bg-white text-black'} border-t border-gray-800 mt-auto`}>
-            <div className="max-w-7xl mx-auto px-8 py-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    {/* Logo and Tagline Section */}
-                    <div className="flex flex-col space-y-4">
-                        <Link href="/" className='w-[23%]'>
-                            <h1 className="cursor-pointer uppercase font-[family-name:var(--font-kanit-sans)] flex flex-col select-none">
-                                <span className="text-[9px] leading-[9px] self-start tracking-wider font-extrabold text-gray-400">Code</span>
-                                <span className="bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-2xl py-1 bg-clip-text text-transparent leading-[12px] font-extrabold tracking-wide scale-y-75 transform origin-top">
-                                    Battle
-                                </span>
-                                <span className="text-[9px] leading-[0] self-end tracking-wider font-extrabold text-gray-400">Ground</span>
-                            </h1>
-                        </Link>
-                        <p className="text-sm">
-                            Where code warriors clash and algorithms triumph.
-                            <br />
-                            <span className="text-xs opacity-75">Sharpen your skills. Rise in the ranks.</span>
+        <footer className="relative mt-auto overflow-hidden border-t border-border bg-background">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+
+            <div className="mx-auto max-w-7xl px-4 pb-8 pt-14 sm:px-6 lg:px-8">
+                <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr]">
+                    <div className="space-y-5">
+                        <Logo />
+                        <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+                            The arena where students sharpen their problem-solving, battle in live contests and
+                            build a track record worth showing off.
                         </p>
-                        <div className="flex space-x-4 ">
-                            <Link href="https://github.com" className="hover:text-orange-500 transition-colors duration-300">
-                                <Github size={18} />
-                            </Link>
-                            <Link href="https://twitter.com" className="hover:text-orange-500 transition-colors duration-300">
-                                <Twitter size={18} />
-                            </Link>
-                            <Link href="https://linkedin.com" className="hover:text-orange-500 transition-colors duration-300">
-                                <Linkedin size={18} />
-                            </Link>
+                        <div className="flex gap-2">
+                            {socials.map(({ name, href, icon: Icon }) => (
+                                <Link
+                                    key={name}
+                                    href={href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={name}
+                                    className="grid h-9 w-9 place-items-center rounded-xl border border-border bg-card/60 text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary"
+                                >
+                                    <Icon className="h-4 w-4" />
+                                </Link>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Quick Links Section */}
-                    <div className="flex flex-col space-y-4">
-                        <h3 className="font-semibold text-sm uppercase tracking-wider">Quick Links</h3>
-                        <ul className="space-y-2 text-sm">
-                            <li>
-                                <Link href="/challenge" className=" hover:text-orange-500 transition-colors duration-300 flex items-center gap-2">
-                                    Challenges
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/leaderboard" className=" hover:text-orange-500 transition-colors duration-300 flex items-center gap-2">
-                                    Leaderboard
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/tutorials" className=" hover:text-orange-500 transition-colors duration-300 flex items-center gap-2">
-                                    Tutorials
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/community" className=" hover:text-orange-500 transition-colors duration-300 flex items-center gap-2">
-                                    Community
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/blog" className=" hover:text-orange-500 transition-colors duration-300 flex items-center gap-2">
-                                    Blog
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
-
-                    {/* Newsletter Section */}
-                    <div className="flex flex-col space-y-4">
-                        <h3 className="font-semibold text-sm uppercase tracking-wider">Join The Battle</h3>
-                        <p className="text-sm">Stay updated with the latest challenges and features.</p>
-                        <div className="relative">
-                            <input
-                                type="email"
-                                placeholder="your@email.com"
-                                className="w-full bg-gray-800 border-2 border-gray-700 rounded-lg py-2 pl-4 pr-10 text-gray-300 
-                         placeholder-gray-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500
-                         transition-all duration-300"
-                            />
-                            <button
-                                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-white px-2 py-1 rounded text-xs"
-                            >
-                                Subscribe
-                            </button>
+                    {columns.map((column) => (
+                        <div key={column.title}>
+                            <h3 className="mb-4 font-display text-sm font-semibold text-foreground">{column.title}</h3>
+                            <ul className="space-y-2.5">
+                                {column.links.map((link) => (
+                                    <li key={link.href}>
+                                        <Link
+                                            href={link.href}
+                                            className="group inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                                        >
+                                            {link.name}
+                                            <ArrowUpRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
-                    </div>
+                    ))}
                 </div>
 
-                {/* Bottom Section */}
-                <div className="pt-8 mt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center">
-                    <div className="text-xs flex items-center mb-4 md:mb-0">
-                        <Code size={14} className="mr-2" />
-                        <span>
-                            Made with <Heart size={12} className="inline text-orange-500 mx-1" /> by{" "}
-                            <Link href="https://www.linkedin.com/in/vignaramtej/" className="text-orange-500 hover:underline">
-                                Vigna Ramtej Telagarapu
-                            </Link>
-                        </span>
-                    </div>
-
-                    <div className="flex space-x-4 text-xs ">
-                        <Link href="/terms" className="hover:text-gray-300 transition-colors duration-300">
-                            Terms
+                <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row">
+                    <span>© {new Date().getFullYear()} Code Battle Ground. All rights reserved.</span>
+                    <span className="inline-flex items-center gap-1">
+                        Built with <Heart className="h-3 w-3 fill-primary text-primary" /> by
+                        <Link
+                            href="https://www.linkedin.com/in/vignaramtej/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-foreground hover:text-primary"
+                        >
+                            Vigna Ramtej Telagarapu
                         </Link>
-                        <Link href="/privacy" className="hover:text-gray-300 transition-colors duration-300">
-                            Privacy
-                        </Link>
-                        <Link href="/cookies" className="hover:text-gray-300 transition-colors duration-300">
-                            Cookies
-                        </Link>
-                        <span>© {new Date().getFullYear()}</span>
-                    </div>
+                    </span>
                 </div>
+            </div>
+
+            {/* Oversized wordmark */}
+            <div
+                aria-hidden
+                className="pointer-events-none select-none px-4 pb-2 text-center font-display text-[18vw] font-bold leading-none tracking-tighter text-foreground/[0.035] lg:text-[200px]"
+            >
+                CODE·BATTLE
             </div>
         </footer>
     );

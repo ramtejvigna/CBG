@@ -60,7 +60,7 @@ const handler = NextAuth({
         }
 
         try {
-          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+          const backendUrl = (process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5000';
           
           const response = await fetch(`${backendUrl}/api/auth/login`, {
             method: 'POST',
@@ -101,8 +101,15 @@ const handler = NextAuth({
   },
   debug: process.env.NODE_ENV === 'development',
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, trigger, session }) {
       
+      // Refresh the token when the client calls useSession().update(...) (e.g. after onboarding)
+      if (trigger === 'update' && session) {
+        if (typeof session.username === 'string') token.username = session.username;
+        if (typeof session.name === 'string') token.name = session.name;
+        if (typeof session.needsOnboarding === 'boolean') token.needsOnboarding = session.needsOnboarding;
+      }
+
       // Store user data in the JWT token when user signs in
       if (user) {
         // Store all user data in token
@@ -122,7 +129,7 @@ const handler = NextAuth({
       }
       return token;
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       try {
         // Skip backend call for credentials provider as it's already authenticated
         if (account?.provider === "credentials") {
@@ -132,22 +139,19 @@ const handler = NextAuth({
         // Handle Google OAuth
         if (account?.provider === "google") {
           
-          if (!process.env.NEXT_PUBLIC_API_URL) {
+          if (!(process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL)) {
             console.error('NEXT_PUBLIC_API_URL is not defined');
             return false;
           }
 
           // Make API call to your backend to store/update user data
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`, {
+          const response = await fetch(`${(process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL)}/api/auth/google`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-              image: user.image,
-              googleId: profile?.sub,
+              idToken: account.id_token,
             }),
           });
 

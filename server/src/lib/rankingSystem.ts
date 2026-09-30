@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import { broadcastLeaderboard } from './leaderboardSocket.js';
 
 export class RankingSystem {
     /**
@@ -31,6 +32,7 @@ export class RankingSystem {
 
             const endTime = Date.now();
             console.log(`Full rank update completed in ${endTime - startTime}ms`);
+            broadcastLeaderboard();
         } catch (error) {
             console.error('Error updating all user ranks:', error);
             throw error;
@@ -84,6 +86,7 @@ export class RankingSystem {
                 data: { rank: newRank }
             });
 
+            broadcastLeaderboard();
             console.log(`Updated rank for user ${userId}: ${newRank}`);
             return newRank;
         } catch (error) {

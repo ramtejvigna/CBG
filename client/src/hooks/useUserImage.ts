@@ -1,3 +1,4 @@
+import { getSessionToken } from '@/lib/auth';
 import { useState, useEffect, useCallback } from 'react';
 
 interface UseUserImageReturn {
@@ -59,14 +60,14 @@ export const useCurrentUserImage = (): UseUserImageReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchImage = async () => {
-    const token = localStorage.getItem('token');
+    const token = getSessionToken();
     if (!token) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/users/me/image', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/me/image`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

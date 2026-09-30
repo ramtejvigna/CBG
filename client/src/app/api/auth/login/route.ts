@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Get the backend API URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const backendUrl = (process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL) || 'http://localhost:5000';
     
     // Forward the request to the backend login endpoint
     const response = await fetch(`${backendUrl}/api/auth/login`, {

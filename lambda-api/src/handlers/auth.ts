@@ -115,12 +115,7 @@ app.post('/api/auth/login', async (req, res) => {
 // Signup
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    console.log('Raw body type:', typeof req.body);
-    console.log('Raw body:', req.body);
-    
     const { email, password, username, fullName, preferredLanguage } = req.body || {};
-
-    console.log('Signup request body: ', { email, username, fullName, preferredLanguage });
 
     if (!email || !password || !username || !fullName) {
       return res.status(400).json({ message: 'Email, password, and username are required' });

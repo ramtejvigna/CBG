@@ -1,25 +1,18 @@
 import React from 'react'
+import { LogoMark } from '@/components/Logo'
 
 const Loader = () => {
     return (
-        <div className="fixed inset-0 z-50 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center">
-            {/* 3D Container */}
-            <div className="transform perspective-1000 rotate-y-20 flex flex-col items-center justify-center space-y-4">
-                {/* Animated Gradient Spinner */}
-                <div className="relative w-20 h-20">
-                    <div className="absolute inset-0 rounded-full border-8 border-transparent border-t-[#F14A00] border-r-[#C62300] animate-spin"></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-5">
+                <div className="relative grid place-items-center">
+                    <span className="absolute h-20 w-20 animate-ping rounded-2xl bg-primary/20" />
+                    <span className="absolute h-20 w-20 animate-spin rounded-full border-2 border-transparent border-r-[var(--ember-2)] border-t-[var(--ember-1)]" />
+                    <LogoMark className="h-12 w-12 rounded-2xl" />
                 </div>
-
-                {/* Text with Gradient and Styling */}
-                <div className="text-center">
-                    <h1 className="scale-150 uppercase font-[family-name:var(--font-kanit-sans)] flex flex-col select-none">
-                        <span className="text-[9px] leading-[9px] self-start tracking-wider text-gray-400">Code</span>
-                        <span className="bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-2xl py-1 bg-clip-text text-transparent leading-[12px] font-extrabold tracking-wide scale-y-75 transform origin-top">
-                            Battle
-                        </span>
-                        <span className="text-[9px] leading-[0] self-end tracking-wider text-gray-400">Ground</span>
-                    </h1>
-                </div>
+                <p className="font-display text-sm font-semibold tracking-wide text-muted-foreground">
+                    Loading the arena…
+                </p>
             </div>
         </div>
     )

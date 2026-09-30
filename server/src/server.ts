@@ -23,6 +23,8 @@ import {
 } from "./middleware/optimizedRateLimiter.js";
 import { simpleApiLogger } from "./middleware/simpleLogger.js";
 import compression from 'compression';
+import { initLeaderboardSocket, closeLeaderboardSocket } from './lib/leaderboardSocket.js';
+import { closeRedis } from './lib/redis.js';
 
 const app = express();
 
@@ -97,7 +99,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     });
 });
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`);
     
     try {
@@ -117,17 +119,21 @@ app.listen(PORT, async () => {
     }
 });
 
+initLeaderboardSocket(server);
+
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('Received SIGINT, shutting down gracefully...');
     shutdownRankingSystem();
+    closeLeaderboardSocket();
     shutdownContestScheduler();
-    process.exit(0);
+    void closeRedis().finally(() => process.exit(0));
 });
 
 process.on('SIGTERM', () => {
     console.log('Received SIGTERM, shutting down gracefully...');
     shutdownRankingSystem();
+    closeLeaderboardSocket();
     shutdownContestScheduler();
-    process.exit(0);
+    void closeRedis().finally(() => process.exit(0));
 });

@@ -8,7 +8,7 @@ import { getSessionToken } from '@/lib/auth';
 
 export default function OnboardingPage() {
     const router = useRouter();
-    const { data: session, status } = useSession();
+    const { data: session, status, update } = useSession();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
@@ -58,8 +58,8 @@ export default function OnboardingPage() {
                     ...(token ? { Authorization: `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
-                    userId: session.user.id,
                     username: formData.username,
+                    fullName: formData.fullName,
                     preferredLanguage: formData.preferredLanguage
                 })
             });
@@ -69,6 +69,13 @@ export default function OnboardingPage() {
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to complete onboarding');
             }
+
+            // Refresh the login session so it stops carrying the temporary username
+            await update({
+                username: formData.username,
+                name: formData.fullName || undefined,
+                needsOnboarding: false
+            });
 
             // Redirect to the dashboard after successful onboarding
             router.push('/');

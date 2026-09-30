@@ -1,7 +1,10 @@
+import { invalidateSession, invalidateSessionsForUser } from '../lib/sessionCache.js';
 import type { Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma.js';
+import { OAuth2Client } from 'google-auth-library';
+import { fetchImageAsDataUrl, isRemoteImage } from '../lib/imageStore.js';
 import { sendPasswordResetEmail, isEmailServiceAvailable } from '../lib/emailService.js';
 
 // Helper function to check for existing valid session
@@ -33,6 +36,13 @@ export const signup = async (req: Request, res: Response) => {
             });
         }
 
+        if (typeof username !== 'string' || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username must be 3-20 characters: letters, numbers or underscores'
+            });
+        }
+
         // Check if user already exists
         const existingUser = await prisma.user.findFirst({
             where: {
@@ -54,14 +64,10 @@ export const signup = async (req: Request, res: Response) => {
         const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        // Create new user with profile and temporarily generated username
-        const baseUsername = fullName.toLowerCase().replace(/\s+/g, '');
-        const tempUsername = `${baseUsername}`;
-
         const user = await prisma.user.create({
             data: {
                 email,
-                username: tempUsername, // Using temporary username
+                username,
                 name: fullName,
                 password: hashedPassword,
                 emailVerified: new Date(),
@@ -111,14 +117,14 @@ export const signup = async (req: Request, res: Response) => {
 
         res.status(201).json({
             success: true,
-            message: 'Please complete your profile setup',
+            message: 'Account created',
             user: {
                 ...userWithoutImage,
                 // Only include a flag to indicate if user has an image
                 hasImage: !!user.image
             },
             sessionToken,
-            needsOnboarding: true
+            needsOnboarding: false
         });
 
     } catch (error) {
@@ -212,16 +218,43 @@ export const login = async (req: Request, res: Response) => {
     }
 };
 
+const googleClient = new OAuth2Client();
+
 export const googleAuth = async (req: Request, res: Response) => {
     try {
-        const { email, name, image, googleId } = req.body;
+        const { idToken } = req.body;
+        const audience = process.env.GOOGLE_CLIENT_ID;
 
-        if (!email) {
+        if (!idToken || typeof idToken !== 'string' || !audience) {
             return res.status(400).json({
                 success: false,
-                message: 'Email is required for Google authentication'
+                message: 'A Google ID token is required'
             });
         }
+
+        // Identity comes only from the verified token, never from the request body
+        let payload;
+        try {
+            const ticket = await googleClient.verifyIdToken({ idToken, audience });
+            payload = ticket.getPayload();
+        } catch {
+            return res.status(401).json({ success: false, message: 'Invalid Google token' });
+        }
+
+        if (!payload?.email || !payload.email_verified) {
+            return res.status(401).json({ success: false, message: 'Google account email is not verified' });
+        }
+
+        const email = payload.email;
+        const name = payload.name ?? null;
+        const googlePicture = payload.picture ?? null;
+        const googleId = payload.sub;
+
+        // Keep our own copy of the picture; fall back to the link if the download fails
+        const storedPicture = googlePicture
+            ? (await fetchImageAsDataUrl(googlePicture)) ?? googlePicture
+            : null;
+        const image = storedPicture;
 
         // Check if user exists
         let user = await prisma.user.findUnique({
@@ -268,6 +301,16 @@ export const googleAuth = async (req: Request, res: Response) => {
                 }
             });
         } else {
+            // Fill in the picture if the user has none, or still has a hot-linked URL.
+            // A picture the user uploaded themselves is never overwritten.
+            if (image && (!user.image || isRemoteImage(user.image))) {
+                user = await prisma.user.update({
+                    where: { id: user.id },
+                    data: { image },
+                    include: { userProfile: true, accounts: true }
+                });
+            }
+
             // Ensure account connection exists
             const existingAccount = await prisma.account.findFirst({
                 where: {
@@ -337,7 +380,23 @@ export const googleAuth = async (req: Request, res: Response) => {
 
 export const completeOnboarding = async (req: Request, res: Response) => {
     try {
-        const { userId, username, preferredLanguage } = req.body;
+        const { username, preferredLanguage, fullName } = req.body;
+        const userId = req.user!.id;
+
+        if (typeof username !== 'string' || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Username must be 3-20 characters: letters, numbers or underscores'
+            });
+        }
+
+        const taken = await prisma.user.findFirst({
+            where: { username, NOT: { id: userId } },
+            select: { id: true }
+        });
+        if (taken) {
+            return res.status(409).json({ success: false, message: 'Username already taken' });
+        }
 
         // Check if user exists
         const user = await prisma.user.findUnique({
@@ -356,6 +415,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             where: { id: userId },
             data: {
                 username,
+                ...(typeof fullName === 'string' && fullName.trim() ? { name: fullName.trim() } : {}),
                 needsOnboarding: false,
                 userProfile: {
                     update: {
@@ -369,10 +429,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
             }
         });
 
+        const { password: _password, image: _image, ...safeUser } = updatedUser;
+
         res.status(200).json({
             success: true,
             message: 'Profile completed successfully',
-            user: updatedUser
+            user: { ...safeUser, hasImage: !!updatedUser.image }
         });
 
     } catch (error) {
@@ -389,10 +451,12 @@ export const logout = async (req: Request, res: Response) => {
         const sessionToken = req.headers.authorization?.split(' ')[1];
         
         if (sessionToken) {
-            // Delete the session from database
+            // Delete the session from database and drop it from the shared cache,
+            // so every API instance stops accepting the token immediately.
             await prisma.session.deleteMany({
                 where: { sessionToken }
             });
+            await invalidateSession(sessionToken);
         }
 
         res.status(200).json({
@@ -611,7 +675,9 @@ export const resetPassword = async (req: Request, res: Response) => {
             })
         ]);
 
-        // Invalidate all sessions for this user
+        // Invalidate all sessions for this user. Cached entries are dropped first,
+        // while the tokens can still be read from the database.
+        await invalidateSessionsForUser(user.id);
         await prisma.session.deleteMany({
             where: { userId: user.id }
         });
@@ -686,52 +752,6 @@ export const validateResetToken = async (req: Request, res: Response) => {
         return res.status(500).json({
             success: false,
             message: "Error while validating reset token"
-        });
-    }
-};
-
-// Get session token for a user (used by NextAuth)
-export const getSessionToken = async (req: Request, res: Response) => {
-    try {
-        const { userId } = req.params;
-
-        if (!userId) {
-            return res.status(400).json({
-                success: false,
-                message: 'User ID is required'
-            });
-        }
-
-        // Get the most recent valid session for the user
-        const session = await prisma.session.findFirst({
-            where: {
-                userId: userId,
-                expires: {
-                    gt: new Date() // Only return non-expired sessions
-                }
-            },
-            orderBy: {
-                expires: 'desc' // Get the most recent session (by expiry date)
-            }
-        });
-
-        if (!session) {
-            return res.status(404).json({
-                success: false,
-                message: 'No valid session found'
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            sessionToken: session.sessionToken
-        });
-
-    } catch (error) {
-        console.error('Get session token error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
         });
     }
 };

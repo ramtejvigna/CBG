@@ -101,7 +101,7 @@ export const useProfileStore = create<ProfileState>()(
 
           // Use the correct endpoint for user details
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/${userId}`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/auth/me`,
             {
               headers: getAuthHeaders(),
             }
@@ -137,7 +137,7 @@ export const useProfileStore = create<ProfileState>()(
 
           // Use the correct endpoint for user profile by username
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/profile/${username}`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/profile/${username}`,
             {
               headers: getAuthHeaders(),
             }

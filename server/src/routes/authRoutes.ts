@@ -1,5 +1,5 @@
 import express from "express"
-import { googleAuth, login, signup, logout, completeOnboarding, me, forgotPassword, resetPassword, validateResetToken, getSessionToken } from "../controllers/authControllers.js";
+import { googleAuth, login, signup, logout, completeOnboarding, me, forgotPassword, resetPassword, validateResetToken } from "../controllers/authControllers.js";
 import { authenticate } from "../middleware/auth.js";
 import { authRateLimit } from "../middleware/optimizedRateLimiter.js";
 
@@ -14,6 +14,5 @@ router.post('/validate-reset-token', authRateLimit, validateResetToken);
 router.post('/google', authRateLimit, googleAuth);
 router.post('/complete-onboarding', authenticate, completeOnboarding);
 router.get('/me', authenticate, me);
-router.get('/session-token/:userId', getSessionToken);
 
 export default router;

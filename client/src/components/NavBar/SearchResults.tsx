@@ -1,7 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { User, Book, Trophy } from 'lucide-react';
-import { useThemeStore } from '@/lib/store/themeStore';
+import { User, Code2, Trophy, SearchX } from 'lucide-react';
 import { generateSlug } from '@/lib/challengeUtils';
 
 interface SearchResult {
@@ -36,108 +35,106 @@ interface SearchResultsProps {
     onResultClick: () => void;
 }
 
-const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) => {
-    const { theme } = useThemeStore();
+const Group = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="p-1.5">
+        <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+        </div>
+        {children}
+    </div>
+);
 
+const Row = ({
+    href,
+    icon,
+    title,
+    meta,
+    onClick,
+}: {
+    href: string;
+    icon: React.ReactNode;
+    title: string;
+    meta: string;
+    onClick: () => void;
+}) => (
+    <Link
+        href={href}
+        onClick={onClick}
+        className="group flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors hover:bg-muted"
+    >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</span>
+        <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-foreground">{title}</div>
+            <div className="truncate text-xs text-muted-foreground">{meta}</div>
+        </div>
+    </Link>
+);
+
+const SearchResults = ({ results, loading, onResultClick }: SearchResultsProps) => {
     if (!results && !loading) return null;
 
+    const hasResults =
+        results && (results.challenges.length > 0 || results.contests.length > 0 || results.users.length > 0);
+
     return (
-        <div className={`absolute top-full left-0 right-0 mt-2 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg shadow-lg overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200`}>
+        <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-border bg-popover shadow-2xl animate-in fade-in-0 slide-in-from-top-2 duration-200">
             {loading ? (
-                <div className="p-4 text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
-                    <p className={`text-xs mt-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Searching...
-                    </p>
+                <div className="p-6 text-center">
+                    <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <p className="mt-2 text-xs text-muted-foreground">Searching…</p>
+                </div>
+            ) : hasResults ? (
+                <div className="divide-y divide-border">
+                    {results.challenges.length > 0 && (
+                        <Group label="Problems">
+                            {results.challenges.map((challenge) => (
+                                <Row
+                                    key={challenge.id}
+                                    href={`/challenges/${generateSlug(challenge.title)}`}
+                                    onClick={onResultClick}
+                                    icon={<Code2 className="h-4 w-4" />}
+                                    title={challenge.title}
+                                    meta={`${challenge.category.name} · ${challenge.difficulty}`}
+                                />
+                            ))}
+                        </Group>
+                    )}
+
+                    {results.contests.length > 0 && (
+                        <Group label="Contests">
+                            {results.contests.map((contest) => (
+                                <Row
+                                    key={contest.id}
+                                    href={`/contests/${generateSlug(contest.title)}`}
+                                    onClick={onResultClick}
+                                    icon={<Trophy className="h-4 w-4" />}
+                                    title={contest.title}
+                                    meta={`${contest.status} · ${new Date(contest.startsAt).toLocaleDateString()}`}
+                                />
+                            ))}
+                        </Group>
+                    )}
+
+                    {results.users.length > 0 && (
+                        <Group label="Coders">
+                            {results.users.map((user) => (
+                                <Row
+                                    key={user.id}
+                                    href={`/profile/${user.username}`}
+                                    onClick={onResultClick}
+                                    icon={<User className="h-4 w-4" />}
+                                    title={user.name}
+                                    meta={`@${user.username}`}
+                                />
+                            ))}
+                        </Group>
+                    )}
                 </div>
             ) : (
-                <>
-                    {results && (results.challenges.length > 0 || results.contests.length > 0 || results.users.length > 0) ? (
-                        <div>
-                            {results.challenges.length > 0 && (
-                                <div className="p-2">
-                                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} px-3 py-1`}>
-                                        Challenges
-                                    </div>
-                                    {results.challenges.map((challenge) => (
-                                        <Link
-                                            key={challenge.id}
-                                            href={`/challenges/${generateSlug(challenge.title)}`}
-                                            onClick={onResultClick}
-                                            className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
-                                        >
-                                            <Book className="w-4 h-4 mr-2 text-orange-500" />
-                                            <div>
-                                                <div className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                    {challenge.title}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {challenge.category.name} · {challenge.difficulty}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-
-                            {results.contests.length > 0 && (
-                                <div className="p-2">
-                                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} px-3 py-1`}>
-                                        Contests
-                                    </div>
-                                    {results.contests.map((contest) => (
-                                        <Link
-                                            key={contest.id}
-                                            href={`/contests/${generateSlug(contest.title)}`}
-                                            onClick={onResultClick}
-                                            className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
-                                        >
-                                            <Trophy className="w-4 h-4 mr-2 text-orange-500" />
-                                            <div>
-                                                <div className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                    {contest.title}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {contest.status} · {new Date(contest.startsAt).toLocaleDateString()}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-
-                            {results.users.length > 0 && (
-                                <div className="p-2">
-                                    <div className={`text-xs font-semibold ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} px-3 py-1`}>
-                                        Users
-                                    </div>
-                                    {results.users.map((user) => (
-                                        <Link
-                                            key={user.id}
-                                            href={`/profile/${user.username}`}
-                                            onClick={onResultClick}
-                                            className={`flex items-center px-3 py-2 ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-100'} rounded-md transition-colors`}
-                                        >
-                                            <User className="w-4 h-4 mr-2 text-orange-500" />
-                                            <div>
-                                                <div className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
-                                                    {user.name}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    @{user.username}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="p-4 text-center text-gray-500">
-                            No results found
-                        </div>
-                    )}
-                </>
+                <div className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
+                    <SearchX className="h-5 w-5" />
+                    No results found
+                </div>
             )}
         </div>
     );

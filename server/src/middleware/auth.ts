@@ -1,51 +1,38 @@
 import { type Request, type Response, type NextFunction } from 'express';
-import prisma from '../lib/prisma.js';
-import type { User } from '../types/models.js';
-import { cache } from '../lib/cache.js';
+import { getSessionByToken, type CachedSession } from '../lib/sessionCache.js';
 
-// Extend Express Request type to include user
+/**
+ * The identity attached by these middlewares. It is deliberately the subset of the
+ * user record that authentication loads, rather than the full database row, so a
+ * handler cannot silently depend on a field the session lookup never fetched.
+ */
+export type AuthenticatedUser = CachedSession['user'];
+
 declare global {
     namespace Express {
         interface Request {
-            user?: User
+            user?: AuthenticatedUser
         }
     }
 }
 
+const bearerToken = (req: Request): string | undefined =>
+    req.headers.authorization?.split(' ')[1];
+
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        
+        const token = bearerToken(req);
+
         if (!token) {
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        // Check cache first for session (5 minute cache to reduce DB calls)
-        const cacheKey = `session_${token}`;
-        let session: any = cache.get(cacheKey);
+        const session = await getSessionByToken(token);
 
         if (!session) {
-            // Get session from database only if not cached
-            session = await prisma.session.findUnique({
-                where: { sessionToken: token },
-                include: {
-                    user: true
-                }
-            });
-
-            // Cache the session for 5 minutes if it exists and is valid
-            if (session && Date.now() <= new Date(session.expires).getTime()) {
-                cache.setShort(cacheKey, session);
-            }
-        }
-
-        if (!session || Date.now() > new Date(session.expires).getTime()) {
-            // Remove from cache if expired
-            cache.del(cacheKey);
             return res.status(401).json({ message: 'Session expired' });
         }
 
-        // Attach user to request
         req.user = session.user;
         next();
     } catch (error) {
@@ -56,71 +43,42 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
 export const optionalAuthenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        
-        if (!token) {
-            // No token provided, continue without authentication
-            return next();
-        }
-
-        // Check cache first for session
-        const cacheKey = `session_${token}`;
-        let session: any = cache.get(cacheKey);
-
-        if (!session) {
-            // Get session from database only if not cached
-            session = await prisma.session.findUnique({
-                where: { sessionToken: token },
-                include: {
-                    user: true
-                }
-            });
-
-            // Cache the session for 5 minutes if it exists and is valid
-            if (session && Date.now() <= new Date(session.expires).getTime()) {
-                cache.setShort(cacheKey, session);
+        const token = bearerToken(req);
+        if (token) {
+            const session = await getSessionByToken(token);
+            if (session) {
+                req.user = session.user;
             }
         }
-
-        if (session && Date.now() <= new Date(session.expires).getTime()) {
-            // Attach user to request if session is valid
-            req.user = session.user;
-        }
-        
-        // Continue regardless of authentication status
         next();
-    } catch (error) {
-        // If there's an error in optional auth, just continue without user
+    } catch {
+        // Authentication is optional here, so errors must not block the request
         next();
     }
 };
 
 export const authenticateAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-        
+        const token = bearerToken(req);
+
         if (!token) {
             return res.status(401).json({ message: 'Authentication required' });
         }
 
-        const session = await prisma.session.findUnique({
-            where: { sessionToken: token },
-            include: {
-                user: true
-            }
-        });
+        const session = await getSessionByToken(token);
 
-        if (!session || Date.now() > new Date(session.expires).getTime()) {
+        if (!session) {
             return res.status(401).json({ message: 'Session expired' });
         }
 
-        if(session.user.role !== 'ADMIN') {
-            return res.status(401).json({ message: 'Unauthorized' });
+        if (session.user.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Unauthorized' });
         }
 
         req.user = session.user;
         next();
     } catch (error) {
+        console.error('Admin authentication error:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
-}
+};

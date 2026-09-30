@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Logo from '@/components/Logo';
 import {
     Eye,
     EyeOff,
@@ -152,43 +153,12 @@ export default function AuthForm() {
         }
     };
 
-    // Deterministic Matrix-like raining code effect component
-    const MatrixRain = () => {
-        if (!isClient) return null;
-
-        // Use a deterministic pattern instead of random
-        return (
-            <div className="absolute inset-0 overflow-hidden z-0 select-none pointer-events-none opacity-20">
-                <div className="absolute top-0 left-0 right-0 flex justify-between">
-                    {Array.from({ length: 20 }).map((_, index) => (
-                        <div key={index}
-                            className="text-green-500 text-xs font-mono animate-matrix-rain"
-                            style={{
-                                animationDelay: `${(index % 5) * 1}s`,
-                                animationDuration: `${5 + (index % 10)}s`
-                            }}>
-                            {Array.from({ length: 15 }).map((_, i) => (
-                                <div key={i}>
-                                    {String.fromCharCode(33 + ((index + i) % 93))}
-                                </div>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    };
-
     return (
-        <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-            {/* Matrix-like code rain - only rendered client-side */}
-            {isClient && <MatrixRain />}
+        <div className="dark relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gray-900 p-4 text-gray-100">
 
-            {/* Animated background glow */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute top-1/4 -left-40 w-80 h-80 bg-orange-600 rounded-full mix-blend-multiply filter blur-lg opacity-20 animate-pulse"></div>
-                <div className="absolute bottom-1/4 -right-40 w-80 h-80 bg-orange-600 rounded-full mix-blend-multiply filter blur-lg opacity-20 animate-pulse"></div>
-            </div>
+            {/* Ambient background */}
+            <div className="aurora z-0" />
+            <div className="bg-grid mask-fade-b absolute inset-0 z-0" />
 
             {/* Animated code background - only rendered client-side */}
             {isClient && (
@@ -201,24 +171,9 @@ export default function AuthForm() {
                 </div>
             )}
 
-            {/* Logo with animation */}
-            <Link href="/" className="mb-8 relative z-10 group">
-                <div className="relative">
-                    <h1 className="uppercase font-[family-name:var(--font-kanit-sans)] flex flex-col select-none">
-                        <span className="text-xs leading-3 self-start tracking-wider text-gray-400 group-hover:text-gray-200 transition-colors duration-300">
-                            Code
-                        </span>
-                        <span className="bg-gradient-to-tr from-orange-500 to-orange-700 text-3xl py-1 bg-clip-text text-transparent leading-4 font-extrabold tracking-wide scale-y-75 transform origin-top group-hover:from-orange-400 group-hover:to-orange-600 transition-all duration-500">
-                            Battle
-                        </span>
-                        <span className="text-xs leading-3 self-end tracking-wider text-gray-400 group-hover:text-gray-200 transition-colors duration-300">
-                            Ground
-                        </span>
-                    </h1>
-                    <div className="absolute -bottom-3 left-0 w-0 h-0.5 bg-gradient-to-r from-orange-500 to-orange-300 group-hover:w-full transition-all duration-500"></div>
-                </div>
-                <div className="absolute -top-2 -left-2 -right-2 -bottom-2 border border-orange-500/0 group-hover:border-orange-500/20 rounded-md transition-all duration-500"></div>
-            </Link>
+            <div className="relative z-10 mb-8">
+                <Logo />
+            </div>
 
             <div className="w-full max-w-md relative z-10">
                 {/* Floating code symbols */}
@@ -229,7 +184,7 @@ export default function AuthForm() {
                     <Terminal className="w-16 h-16" />
                 </div>
 
-                <div className="bg-gray-800/80 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl overflow-hidden transform transition-all duration-500 hover:shadow-orange-900/20">
+                <div className="surface overflow-hidden border-white/10 bg-gray-800/70 shadow-2xl">
                     {/* Header with animated icon */}
                     <div className="p-6 border-b border-gray-700 relative overflow-hidden">
                         <div className="flex justify-between items-center">
@@ -412,7 +367,7 @@ export default function AuthForm() {
                             type="submit"
                             disabled={loading}
                             className={`w-full py-3 px-4 rounded-lg text-white font-medium relative overflow-hidden group
-                            bg-gradient-to-tr from-orange-600 to-orange-800 hover:from-orange-500 hover:to-orange-700
+                            bg-brand hover:brightness-110 shadow-[0_10px_30px_-10px_rgb(var(--glow-ember)/0.7)]
                             focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-50 
                             transition-all duration-500 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >

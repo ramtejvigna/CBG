@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Calendar, Clock, Users, Trophy, Star, ChevronRight, Zap, AlertCircle, RefreshCw } from "lucide-react"
+import { Calendar, Clock, Users, Trophy, Star, ChevronRight, Zap, AlertCircle, RefreshCw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -51,11 +51,11 @@ const ContestsPage = () => {
     const getStatusColor = (status: string) => {
         switch (status) {
             case "ONGOING":
-                return "bg-red-500/20 text-red-400 border-red-500/30"
+                return "bg-orange-500 text-white border-orange-500"
             case "REGISTRATION_OPEN":
                 return "bg-orange-500/20 text-orange-400 border-orange-500/30"
             case "UPCOMING":
-                return "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                return "bg-white/10 text-white border-white/20"
             case "FINISHED":
                 return "bg-slate-500/20 text-slate-400 border-slate-500/30"
             default:
@@ -152,37 +152,42 @@ const ContestsPage = () => {
     )
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-            <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">
+        <div className="dark relative isolate min-h-screen bg-slate-900 text-slate-100">
+            <div className="aurora -z-10" />
+            <div className="bg-grid mask-fade-b absolute inset-0 -z-10" />
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
                 {/* Header Section */}
-                <div className="mb-8 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Trophy className="w-8 h-8 text-orange-500" />
-                            <h1 className="text-3xl md:text-4xl font-bold text-white">Contests</h1>
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => refreshContests()}
-                            disabled={loading}
-                            className="border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
-                        >
-                            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </Button>
+                <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <span className="eyebrow mb-4">
+                            <Trophy className="h-3.5 w-3.5" /> Contests
+                        </span>
+                        <h1 className="text-4xl font-bold text-white sm:text-5xl">
+                            Battle it out, <span className="text-gradient">live.</span>
+                        </h1>
+                        <p className="mt-3 max-w-xl text-slate-400">
+                            Timed contests against coders like you. Register, compete and climb the leaderboard.
+                        </p>
                     </div>
-                    <p className="text-slate-400 text-lg">Compete with others, solve challenges, and climb the leaderboard</p>
+                    <button
+                        onClick={() => refreshContests()}
+                        disabled={loading}
+                        className="btn-ghost self-start md:self-auto"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </button>
                 </div>
 
                 {/* Search Bar */}
-                <div className="mb-6">
+                <div className="relative mb-6">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                     <input
                         type="text"
-                        placeholder="Search contests..."
+                        placeholder="Search contests…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                        className="h-12 w-full rounded-xl border border-white/10 bg-slate-800/70 pl-11 pr-4 text-white placeholder-slate-500 backdrop-blur transition-all focus:border-orange-500/60 focus:outline-none focus:ring-4 focus:ring-orange-500/15"
                     />
                 </div>
 
@@ -219,9 +224,9 @@ const ContestsPage = () => {
 
                 {/* Success Alert */}
                 {registrationSuccess && (
-                    <Alert className="mb-6 bg-green-500/10 border-green-500/30">
-                        <AlertCircle className="h-4 w-4 text-green-500" />
-                        <AlertDescription className="text-green-400">
+                    <Alert className="mb-6 bg-orange-500/10 border-orange-500/30">
+                        <AlertCircle className="h-4 w-4 text-orange-500" />
+                        <AlertDescription className="text-orange-300">
                             Successfully registered for the contest!
                         </AlertDescription>
                     </Alert>
@@ -229,22 +234,22 @@ const ContestsPage = () => {
 
                 {/* Tabs Navigation */}
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-                    <TabsList className="grid w-full grid-cols-3 bg-slate-800 border border-slate-700">
+                    <TabsList className="grid h-12 w-full grid-cols-3 rounded-xl border border-white/10 bg-slate-800/70 p-1 backdrop-blur sm:w-[420px]">
                         <TabsTrigger
                             value="upcoming"
-                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white"
+                            className="rounded-lg text-slate-400 data-[state=active]:bg-brand data-[state=active]:text-white data-[state=active]:shadow-lg"
                         >
                             Upcoming
                         </TabsTrigger>
                         <TabsTrigger
                             value="live"
-                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white"
+                            className="rounded-lg text-slate-400 data-[state=active]:bg-brand data-[state=active]:text-white data-[state=active]:shadow-lg"
                         >
                             Live
                         </TabsTrigger>
                         <TabsTrigger
                             value="past"
-                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white"
+                            className="rounded-lg text-slate-400 data-[state=active]:bg-brand data-[state=active]:text-white data-[state=active]:shadow-lg"
                         >
                             Past
                         </TabsTrigger>
@@ -271,7 +276,7 @@ const ContestsPage = () => {
                                 {filteredContests.map((contest: Contest, index: number) => (
                                     <Card
                                         key={contest.id}
-                                        className="bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700 hover:border-orange-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 cursor-pointer group flex flex-col h-full"
+                                        className="surface surface-hover group flex h-full cursor-pointer flex-col border-white/10 bg-slate-800/70"
                                         style={{
                                             animation: `slideInUp 0.5s ease-out ${index * 0.1}s both`,
                                         }}
@@ -356,13 +361,13 @@ const ContestsPage = () => {
                                                     disabled={registering === contest.id}
                                                     className={`w-full font-semibold transition-all cursor-pointer ${
                                                         contest.status === "ONGOING"
-                                                            ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+                                                            ? "bg-brand text-white hover:brightness-110"
                                                             : contest.status === "REGISTRATION_OPEN"
                                                                 ? contest.isRegistered
-                                                                    ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
-                                                                    : "bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white"
+                                                                    ? "bg-white/10 text-white ring-1 ring-orange-500/50 hover:bg-white/15"
+                                                                    : "bg-brand text-white hover:brightness-110"
                                                                 : contest.status === "UPCOMING"
-                                                                    ? "bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
+                                                                    ? "bg-white text-black hover:bg-gray-200"
                                                                     : "bg-slate-700 hover:bg-slate-600 text-slate-300"
                                                     }`}
                                                 >

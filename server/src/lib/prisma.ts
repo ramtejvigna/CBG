@@ -1,5 +1,24 @@
 import { PrismaClient } from "@prisma/client";
 
+// Add pool/timeout tuning without clobbering anything already in DATABASE_URL.
+// TLS stays required for remote databases; local ones (Docker `db`, localhost) have none.
+const buildDatabaseUrl = (): string => {
+    const url = new URL(process.env.DATABASE_URL as string);
+    const isLocal = ['localhost', '127.0.0.1', 'db'].includes(url.hostname);
+    const defaults: Record<string, string> = {
+        connection_limit: '10',
+        pool_timeout: '5',
+        schema_cache_size: '10000',
+        statement_timeout: '3000',
+        connect_timeout: '5',
+        sslmode: isLocal ? 'disable' : 'require'
+    };
+    for (const [key, value] of Object.entries(defaults)) {
+        if (!url.searchParams.has(key)) url.searchParams.set(key, value);
+    }
+    return url.toString();
+};
+
 const prisma = new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? [
         { level: 'query', emit: 'event' },
@@ -9,7 +28,7 @@ const prisma = new PrismaClient({
     errorFormat: 'minimal',
     datasources: {
         db: {
-            url: process.env.DATABASE_URL + "?connection_limit=10&pool_timeout=5&schema_cache_size=10000&statement_timeout=3000&connect_timeout=5&sslmode=require"
+            url: buildDatabaseUrl()
         }
     }
 });

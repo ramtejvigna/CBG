@@ -2,13 +2,18 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, Grip, LogIn, UserPlus, LogOut, Moon, Sun } from 'lucide-react';
-import GridModel from './GridModel';
+import { usePathname } from 'next/navigation';
+import {
+    Search, LogOut, Moon, Sun, Menu, X, User, Settings, Shield, ChevronDown,
+    Code2, Trophy, BarChart3, Activity, ArrowRight,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/lib/store/themeStore';
 import { UserAvatar } from '@/components/ui/UserAvatar';
+import Logo from '@/components/Logo';
 import Loader from '../Loader';
 import SearchResults from './SearchResults';
+import { cn } from '@/lib/utils';
 
 interface SearchResult {
     challenges: Array<{
@@ -36,9 +41,19 @@ interface SearchResult {
     }>;
 }
 
+const navLinks = [
+    { name: 'Problems', href: '/challenges', icon: Code2 },
+    { name: 'Contests', href: '/contests', icon: Trophy },
+    { name: 'Rankings', href: '/rankings', icon: BarChart3 },
+    { name: 'Community', href: '/activity-feed', icon: Activity },
+];
+
 const NavBar = () => {
+    const pathname = usePathname();
     const [searchFocus, setSearchFocus] = useState(false);
-    const [gridModel, setGridModel] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
     const { theme, toggleTheme } = useThemeStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
@@ -46,10 +61,9 @@ const NavBar = () => {
     const searchTimeout = useRef<NodeJS.Timeout | null>(null);
     const searchContainerRef = useRef<HTMLDivElement | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     const { user, logout, loading } = useAuth();
-
-    console.log('NavBar user:', user);
 
     const handleSearch = useCallback(async (query: string) => {
         if (!query.trim()) {
@@ -64,7 +78,7 @@ const NavBar = () => {
                 throw new Error(`Search failed: ${response.status}`);
             }
             const data = await response.json();
-            
+
             // Ensure we have the expected structure
             setSearchResults({
                 challenges: data.challenges || [],
@@ -88,12 +102,10 @@ const NavBar = () => {
         const query = e.target.value;
         setSearchQuery(query);
 
-        // Clear previous timeout
         if (searchTimeout.current) {
             clearTimeout(searchTimeout.current);
         }
 
-        // Set new timeout
         searchTimeout.current = setTimeout(() => {
             handleSearch(query);
         }, 300);
@@ -106,6 +118,9 @@ const NavBar = () => {
                 setSearchFocus(false);
                 setSearchResults(null);
             }
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setMenuOpen(false);
+            }
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -115,11 +130,13 @@ const NavBar = () => {
                 searchInputRef.current?.focus();
                 setSearchFocus(true);
             }
-            // Escape to close search
-            if (event.key === 'Escape' && searchFocus) {
-                setSearchFocus(false);
-                setSearchResults(null);
-                searchInputRef.current?.blur();
+            if (event.key === 'Escape') {
+                setMenuOpen(false);
+                if (searchFocus) {
+                    setSearchFocus(false);
+                    setSearchResults(null);
+                    searchInputRef.current?.blur();
+                }
             }
         };
 
@@ -131,141 +148,237 @@ const NavBar = () => {
         };
     }, [searchFocus]);
 
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 8);
+        onScroll();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    // Close menus on navigation
+    useEffect(() => {
+        setMobileOpen(false);
+        setMenuOpen(false);
+    }, [pathname]);
+
     const handleResultClick = () => {
         setSearchQuery('');
         setSearchResults(null);
         setSearchFocus(false);
     };
 
-    if(loading) {
+    if (loading) {
         return <Loader />
     }
 
-    return (
-        <div>
-            <nav className={`flex ${theme === 'dark' ? 'bg-gray-900 text-gray-300' : 'text-black'} flex-row justify-between items-center border-b p-4 px-8`}>
-                {/* Logo Section */}
-                <Link href="/" className="flex-shrink-0">
-                    <h1 className="cursor-pointer uppercase font-[family-name:var(--font-kanit-sans)] flex flex-col select-none">
-                        <span className="text-[9px] leading-[9px] self-start tracking-wider font-extrabold text-gray-400">Code</span>
-                        <span className="bg-gradient-to-tr from-[#F14A00] to-[#C62300] text-2xl py-1 bg-clip-text text-transparent leading-[12px] font-extrabold tracking-wide scale-y-75 transform origin-top">
-                            Battle
-                        </span>
-                        <span className="text-[9px] leading-[0] self-end tracking-wider font-extrabold text-gray-400">Ground</span>
-                    </h1>
-                </Link>
+    const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-                {/* Search Bar Section */}
-                <div ref={searchContainerRef} className={`relative w-1/2 transition-all duration-300 ${searchFocus ? 'scale-100' : 'scale-95'}`}>
-                    <div className="relative">
-                        <input
-                            ref={searchInputRef}
-                            type="text"
-                            value={searchQuery}
-                            onChange={handleSearchInputChange}
-                            placeholder="Search challenges, contests, warriors... (Ctrl+K)"
-                            className={`w-full border-2 rounded-lg py-2 pl-4 pr-10 ${theme === 'dark'? 'text-gray-300 bg-gray-800 border-gray-700 \
-                                     placeholder-gray-500' : ''} focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 \
-                                     transition-all duration-300`}
-                            onFocus={() => setSearchFocus(true)}
-                        />
-                        <Search
-                            className={`absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 
-                                      ${searchFocus ? 'text-orange-500' : 'text-gray-500'} 
-                                      transition-colors duration-300 ${isSearching ? 'animate-pulse' : ''}`}
-                        />
-                    </div>
-                    
-                    {/* Search Results */}
-                    {searchFocus && (
-                        <SearchResults 
-                            results={searchResults}
-                            loading={isSearching}
-                            onResultClick={handleResultClick}
-                        />
-                    )}
-                </div>
+    const searchBox = (
+        <div ref={searchContainerRef} className="relative w-full">
+            <Search
+                className={cn(
+                    'pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transition-colors',
+                    searchFocus ? 'text-primary' : 'text-muted-foreground',
+                    isSearching && 'animate-pulse'
+                )}
+            />
+            <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchInputChange}
+                placeholder="Search problems, contests, coders…"
+                className="h-10 w-full rounded-xl border border-border bg-muted/60 pl-9 pr-14 text-sm text-foreground placeholder:text-muted-foreground transition-all focus:border-primary/60 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/15"
+                onFocus={() => setSearchFocus(true)}
+            />
+            <span className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 sm:flex">
+                <kbd className="kbd">Ctrl</kbd>
+                <kbd className="kbd">K</kbd>
+            </span>
 
-                {/* Navigation Links */}
-                <div className="flex-shrink-0">
-                    <ul className="flex flex-row items-center gap-8 text-sm">
-                        <li>
-                            <Link href="/about" className="relative group">
-                                <span className="cursor-pointer transition-colors duration-300">
-                                    About
-                                </span>
-                                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-tr from-[#F14A00] to-[#C62300] rounded-full group-hover:w-full transition-all duration-300"></span>
-                            </Link>
-                        </li>
-                        <li onClick={() => setGridModel(prev => !prev)}>
-                            <span className="cursor-pointer transition-colors duration-300">
-                                <Grip />
-                            </span>
-                        </li>
-
-                        <span className='opacity-40'>|</span>
-
-                        {/* Theme Toggler */}
-                        <li>
-                            <button onClick={toggleTheme} className="cursor-pointer transition-colors duration-300">
-                                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                            </button>
-                        </li>
-
-                        {user ? (
-                            <>
-                                <li>
-                                    <Link href={`/profile/${user?.username}`} className="relative group">
-                                        <UserAvatar
-                                            userId={user?.id}
-                                            userName={user?.name || user?.username || 'User'}
-                                            hasImage={user?.hasImage}
-                                            size="lg"
-                                            className="border-2 border-orange-600"
-                                        />
-                                    </Link>
-                                </li>
-                                <li>
-                                    <button
-                                        onClick={() => logout()}
-                                        className="relative group flex items-center"
-                                    >
-                                        <span className="cursor-pointer hover:text-[#F14A00]  transition-colors duration-300 flex items-center">
-                                            <LogOut className="w-4 h-4 mr-1" />
-                                            Logout
-                                        </span>
-                                    </button>
-                                </li>
-                            </>
-                        ) : (
-                            <>
-                                <li>
-                                    <Link href="/login" className="relative group">
-                                        <span className="cursor-pointer transition-colors duration-300 flex items-center">
-                                            <LogIn className="w-4 h-4 mr-1" />
-                                            Login
-                                        </span>
-                                        <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-tr from-[#F14A00] to-[#C62300] rounded-full group-hover:w-full transition-all duration-300"></span>
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link href="/signup" className="relative group">
-                                        <span className="cursor-pointer transition-colors duration-300 flex items-center">
-                                            <UserPlus className="w-4 h-4 mr-1" />
-                                            Sign Up
-                                        </span>
-                                        <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-tr from-[#F14A00] to-[#C62300] rounded-full group-hover:w-full transition-all duration-300"></span>
-                                    </Link>
-                                </li>
-                            </>
-                        )}
-                    </ul>
-
-                    {gridModel && <GridModel onClose={() => setGridModel(false)} />}
-                </div>
-            </nav>
+            {searchFocus && (
+                <SearchResults
+                    results={searchResults}
+                    loading={isSearching}
+                    onResultClick={handleResultClick}
+                />
+            )}
         </div>
     );
+
+    return (
+        <header
+            className={cn(
+                'sticky top-0 z-50 w-full transition-all duration-300',
+                scrolled ? 'glass border-b border-border shadow-[0_10px_30px_-20px_rgb(0_0_0/0.6)]' : 'border-b border-transparent bg-background/40 backdrop-blur-md'
+            )}
+        >
+            <nav className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+                <Logo />
+
+                {/* Primary links */}
+                <ul className="ml-4 hidden items-center gap-1 lg:flex">
+                    {navLinks.map((link) => (
+                        <li key={link.href}>
+                            <Link
+                                href={link.href}
+                                className={cn(
+                                    'relative rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                                    isActive(link.href)
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                                )}
+                            >
+                                {link.name}
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+
+                {/* Search */}
+                <div className="ml-auto hidden w-full max-w-sm md:block">{searchBox}</div>
+
+                {/* Actions */}
+                <div className="ml-auto flex items-center gap-2 md:ml-0">
+                    <button
+                        onClick={toggleTheme}
+                        aria-label="Toggle theme"
+                        className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-card/50 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    >
+                        {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                    </button>
+
+                    {user ? (
+                        <div ref={menuRef} className="relative hidden sm:block">
+                            <button
+                                onClick={() => setMenuOpen((prev) => !prev)}
+                                className="flex items-center gap-2 rounded-xl border border-border bg-card/50 py-1 pl-1 pr-2 transition-colors hover:border-primary/40"
+                                aria-haspopup="menu"
+                                aria-expanded={menuOpen}
+                            >
+                                <UserAvatar
+                                    userId={user?.id}
+                                    userName={user?.name || user?.username || 'User'}
+                                    hasImage={user?.hasImage}
+                                    size="sm"
+                                    className="rounded-lg"
+                                />
+                                <span className="max-w-[110px] truncate text-sm font-medium">{user?.username}</span>
+                                <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', menuOpen && 'rotate-180')} />
+                            </button>
+
+                            {menuOpen && (
+                                <div
+                                    role="menu"
+                                    className="absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-2xl border border-border bg-popover p-1.5 shadow-2xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
+                                >
+                                    <div className="px-3 py-2.5">
+                                        <p className="truncate text-sm font-semibold">{user?.name || user?.username}</p>
+                                        <p className="truncate text-xs text-muted-foreground">@{user?.username}</p>
+                                    </div>
+                                    <div className="my-1 h-px bg-border" />
+                                    <MenuLink href={`/profile/${user?.username}`} icon={User}>Your profile</MenuLink>
+                                    <MenuLink href="/settings" icon={Settings}>Settings</MenuLink>
+                                    {user?.role === 'ADMIN' && (
+                                        <MenuLink href="/admin" icon={Shield}>Admin panel</MenuLink>
+                                    )}
+                                    <div className="my-1 h-px bg-border" />
+                                    <button
+                                        onClick={() => logout()}
+                                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        Log out
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="hidden items-center gap-2 sm:flex">
+                            <Link
+                                href="/login"
+                                className="whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                                Log in
+                            </Link>
+                            <Link href="/signup" className="btn-brand whitespace-nowrap !px-4 !py-2.5">
+                                Start coding <ArrowRight className="h-4 w-4" />
+                            </Link>
+                        </div>
+                    )}
+
+                    <button
+                        onClick={() => setMobileOpen((prev) => !prev)}
+                        aria-label="Open menu"
+                        className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-card/50 lg:hidden"
+                    >
+                        {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                    </button>
+                </div>
+            </nav>
+
+            {/* Mobile panel */}
+            {mobileOpen && (
+                <div className="border-t border-border bg-background/95 backdrop-blur-xl lg:hidden animate-in fade-in-0 slide-in-from-top-2">
+                    <div className="mx-auto max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+                        <div className="md:hidden">{searchBox}</div>
+                        <ul className="grid grid-cols-2 gap-2">
+                            {navLinks.map(({ name, href, icon: Icon }) => (
+                                <li key={href}>
+                                    <Link
+                                        href={href}
+                                        className={cn(
+                                            'flex items-center gap-2.5 rounded-xl border px-3 py-3 text-sm font-medium transition-colors',
+                                            isActive(href)
+                                                ? 'border-primary/40 bg-primary/10 text-primary'
+                                                : 'border-border bg-card/50 hover:border-primary/30'
+                                        )}
+                                    >
+                                        <Icon className="h-4 w-4" />
+                                        {name}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                        {user ? (
+                            <div className="flex gap-2 sm:hidden">
+                                <Link href={`/profile/${user?.username}`} className="btn-ghost flex-1 !py-2.5">
+                                    <User className="h-4 w-4" /> Profile
+                                </Link>
+                                <button onClick={() => logout()} className="btn-ghost flex-1 !py-2.5 !text-red-500">
+                                    <LogOut className="h-4 w-4" /> Log out
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2 sm:hidden">
+                                <Link href="/login" className="btn-ghost flex-1 !py-2.5">Log in</Link>
+                                <Link href="/signup" className="btn-brand flex-1 !py-2.5">Sign up</Link>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </header>
+    );
 };
+
+const MenuLink = ({
+    href,
+    icon: Icon,
+    children,
+}: {
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+    children: React.ReactNode;
+}) => (
+    <Link
+        href={href}
+        role="menuitem"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground/90 transition-colors hover:bg-muted"
+    >
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        {children}
+    </Link>
+);
 
 export default NavBar;

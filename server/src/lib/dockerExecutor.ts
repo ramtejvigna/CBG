@@ -125,6 +125,9 @@ export class DockerExecutor {
             throw new Error(`Unsupported language: ${language}`);
         }
 
+        // The sandbox runs as uid 1000, whatever user owns this directory
+        await fs.chmod(executionDir, 0o777);
+
         // Determine the appropriate filename
         const extension = langConfig.extension;
 
@@ -149,6 +152,8 @@ export class DockerExecutor {
 
         // Write the input file
         await fs.writeFile(path.join(executionDir, 'input.txt'), input);
+        await fs.chmod(path.join(executionDir, filename), 0o666);
+        await fs.chmod(path.join(executionDir, 'input.txt'), 0o666);
 
         // Debug: List files in the execution directory
         const files = await fs.readdir(executionDir);
@@ -225,6 +230,13 @@ export class DockerExecutor {
                 hostPath = executionDir;
             }
 
+            // When the API itself runs in a container, sibling sandbox containers cannot
+            // see its filesystem paths, so mount just this run's folder of the shared volume.
+            const execVolume = process.env.EXEC_TMP_VOLUME;
+            const codeMount = execVolume
+                ? `--mount type=volume,source=${execVolume},target=/code,volume-subpath=${containerId}`
+                : `-v "${hostPath}:/code"`;
+
             // Build the Docker command with resource constraints
             const dockerCommand = `docker run --rm --name code-exec-${containerId} \
         --network none \
@@ -233,7 +245,7 @@ export class DockerExecutor {
         --memory-swap=${memoryLimit}m \
         --pids-limit=50 \
         --security-opt=no-new-privileges \
-        -v "${hostPath}:/code" \
+        ${codeMount} \
         -w /code \
         --user 1000:1000 \
         code-execution-sandbox:latest \

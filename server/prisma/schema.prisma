@@ -253,6 +253,10 @@ model Challenge {
   updatedAt         DateTime           @updatedAt
   timeLimit         Int
   memoryLimit       Int
+  // Per-language boilerplate shown in the editor, e.g. { "javascript": "...", "python": "...", "java": "..." }.
+  // Each template already parses the test case's stdin into real arguments and prints the
+  // answer in the exact format the test case expects; only the solution body is left blank.
+  starterCode       Json?
   category          ChallengeCategory  @relation(fields: [categoryId], references: [id])
   creator           User               @relation("ChallengeCreator", fields: [creatorId], references: [id])
   attempts          ChallengeAttempt[]

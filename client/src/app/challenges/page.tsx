@@ -1,10 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { useTheme } from "@/context/ThemeContext"
-import { Search, Filter, Code, Users, Star, Tag, ChevronUp, ChevronDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { useState, useMemo, type ReactNode } from "react"
+import { Search, Code2, Users, Heart, ChevronUp, ChevronDown, ArrowRight, Layers, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
 import { generateChallengeUrl } from "@/lib/challengeUtils"
 import useChallenges from "@/hooks/useChallenges"
@@ -12,7 +9,6 @@ import useChallenges from "@/hooks/useChallenges"
 type SortableField = 'title' | 'difficulty' | 'points' | '_count'
 
 const ChallengesPage = () => {
-    const { theme } = useTheme()
     const [searchQuery, setSearchQuery] = useState("")
     const [selectedCategory, setSelectedCategory] = useState("all")
     const [selectedDifficulty, setSelectedDifficulty] = useState("all")
@@ -27,26 +23,16 @@ const ChallengesPage = () => {
     const getDifficultyColor = (difficulty: string): string => {
         switch (difficulty.toLowerCase()) {
             case "easy":
-                return "bg-green-500/20 text-green-400 border-green-500/30"
+                return "bg-foreground/5 text-foreground/80 ring-foreground/15"
             case "medium":
-                return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                return "bg-orange-500/10 text-orange-300 ring-orange-400/25"
             case "hard":
-                return "bg-red-500/20 text-red-400 border-red-500/30"
+                return "bg-orange-500/20 text-orange-500 ring-orange-500/45"
             case "expert":
-                return "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                return "bg-orange-500 text-white ring-orange-500"
             default:
-                return "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                return "bg-muted text-muted-foreground ring-border"
         }
-    }
-
-    const getSuccessRateColor = (rate: number): string => {
-        if (rate >= 80) return "text-green-500"
-        if (rate >= 60) return "text-yellow-500"
-        return "text-red-500"
-    }
-
-    const calculateSuccessRate = (): number => {
-        return Math.floor(Math.random() * 40) + 60; // Random between 60-100
     }
 
     const handleSort = (field: SortableField) => {
@@ -108,236 +94,187 @@ const ChallengesPage = () => {
             <ChevronDown className="w-4 h-4 inline ml-1" />
     }
 
+    const difficulties = ["all", "EASY", "MEDIUM", "HARD", "EXPERT"]
+
+    const counts = useMemo(() => {
+        const byDifficulty: Record<string, number> = {}
+        challenges.forEach((c) => {
+            byDifficulty[c.difficulty] = (byDifficulty[c.difficulty] || 0) + 1
+        })
+        return byDifficulty
+    }, [challenges])
+
+    const SortHeader = ({ field, children, className = "" }: { field: SortableField; children: ReactNode; className?: string }) => (
+        <button
+            onClick={() => handleSort(field)}
+            className={`inline-flex items-center gap-0.5 uppercase tracking-wider transition-colors hover:text-foreground ${sortBy === field ? "text-foreground" : ""} ${className}`}
+        >
+            {children}
+            <SortIcon field={field} />
+        </button>
+    )
+
     if (error) {
         return (
-            <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"} flex items-center justify-center`}>
-                <div className="text-center">
-                    <Code className="w-16 h-16 mx-auto mb-4 text-red-500" />
-                    <h3 className="text-xl font-semibold mb-2 text-red-500">Error loading challenges</h3>
-                    <p className={`${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>{error}</p>
+            <div className="flex min-h-[70vh] items-center justify-center px-4">
+                <div className="surface max-w-md p-10 text-center">
+                    <Code2 className="mx-auto mb-4 h-12 w-12 text-red-500" />
+                    <h3 className="mb-2 text-xl font-semibold">Couldn&apos;t load challenges</h3>
+                    <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900" : "bg-gray-50"}`}>
-            <div className="container mx-auto px-6 py-8">
-                {/* Header Section */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h1 className={`text-4xl font-bold text-transparent pb-2 bg-clip-text bg-gradient-to-r from-orange-500 to-red-600 mb-2`}>
-                                Coding Challenges
-                            </h1>
-                            <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                                Sharpen your programming skills with our curated challenges
-                            </p>
-                        </div>
+        <div className="relative isolate">
+            <div className="aurora -z-10 opacity-60" />
+            <div className="bg-grid mask-fade-b absolute inset-0 -z-10" />
+
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+                {/* Header */}
+                <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <span className="eyebrow mb-4">
+                            <Layers className="h-3.5 w-3.5" /> Problem set
+                        </span>
+                        <h1 className="text-4xl font-bold sm:text-5xl">
+                            Pick your <span className="text-gradient">next battle</span>
+                        </h1>
+                        <p className="mt-3 max-w-xl text-muted-foreground">
+                            Hand-picked problems from easy warm-ups to expert brain-benders. Every solve earns points.
+                        </p>
+                    </div>
+                    <div className="flex gap-3">
+                        {["EASY", "MEDIUM", "HARD"].map((d) => (
+                            <div key={d} className="surface min-w-20 px-4 py-3 text-center">
+                                <div className="font-display text-2xl font-bold">{counts[d] || 0}</div>
+                                <div className={`text-[11px] font-semibold uppercase tracking-wide ${getDifficultyColor(d).split(" ")[1]}`}>{d.toLowerCase()}</div>
+                            </div>
+                        ))}
+                    </div>
+                </header>
+
+                {/* Filters */}
+                <div className="surface mb-6 flex flex-col gap-4 p-3 lg:flex-row lg:items-center">
+                    <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search by title or description…"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-11 w-full rounded-xl border border-border bg-muted/60 pl-9 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary/60 focus:bg-card focus:outline-none focus:ring-4 focus:ring-primary/15"
+                        />
                     </div>
 
-                    {/* Filters */}
-                    <div className="flex flex-wrap justify-between gap-4 mb-6">
-                        <div className="flex flex-wrap items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <Tag className="w-4 h-4 text-gray-500" />
-                                <span className={`text-sm font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                    Category:
-                                </span>
-                                <select
-                                    value={selectedCategory}
-                                    onChange={(e) => setSelectedCategory(e.target.value)}
-                                    className={`px-3 py-1 rounded-md border ${theme === "dark" ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-gray-900"
-                                        } focus:outline-none focus:ring-2 focus:ring-orange-500`}
-                                >
-                                    <option value="all">All Categories</option>
-                                    {categories.map((category) => (
-                                        <option key={category.id} value={category.id}>
-                                            {category.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                    <div className="flex flex-wrap items-center gap-1 rounded-xl bg-muted/60 p-1">
+                        {difficulties.map((d) => (
+                            <button
+                                key={d}
+                                onClick={() => setSelectedDifficulty(d)}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
+                                    selectedDifficulty === d
+                                        ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                {d === "all" ? "All" : d.toLowerCase()}
+                            </button>
+                        ))}
+                    </div>
 
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-4 h-4 text-gray-500" />
-                                <span className={`text-sm font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                    Difficulty:
-                                </span>
-                                <select
-                                    value={selectedDifficulty}
-                                    onChange={(e) => setSelectedDifficulty(e.target.value)}
-                                    className={`px-3 py-1 rounded-md border ${theme === "dark" ? "bg-gray-800 border-gray-700 text-white" : "bg-white border-gray-300 text-gray-900"
-                                        } focus:outline-none focus:ring-2 focus:ring-orange-500`}
-                                >
-                                    <option value="all">All Difficulties</option>
-                                    <option value="EASY">Easy</option>
-                                    <option value="MEDIUM">Medium</option>
-                                    <option value="HARD">Hard</option>
-                                    <option value="EXPERT">Expert</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search challenges..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className={`pl-10 pr-4 py-2 rounded-lg border ${theme === "dark"
-                                        ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
-                                        : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
-                                        } focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent`}
-                                />
-                            </div>
-                        </div>
+                    <div className="relative">
+                        <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="h-11 w-full appearance-none rounded-xl border border-border bg-muted/60 pl-9 pr-9 text-sm focus:border-primary/60 focus:outline-none focus:ring-4 focus:ring-primary/15 lg:w-52"
+                        >
+                            <option value="all">All categories</option>
+                            {categories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                    {category.name}
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
                 </div>
 
-                {/* Loading State */}
-                {loading && (
-                    <div className={`text-center py-12 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                        <Code className="w-16 h-16 mx-auto mb-4 opacity-50 animate-pulse" />
-                        <h3 className="text-xl font-semibold mb-2">Loading challenges...</h3>
-                        <p>Please wait while we fetch the latest coding challenges.</p>
+                {/* List */}
+                <div className="surface overflow-hidden">
+                    <div className="hidden grid-cols-[1fr_7rem_10rem_8rem_5rem_5rem_7rem] items-center gap-4 border-b border-border px-5 py-3 text-xs font-semibold text-muted-foreground md:grid">
+                        <SortHeader field="title">Problem</SortHeader>
+                        <SortHeader field="difficulty">Difficulty</SortHeader>
+                        <span className="uppercase tracking-wider">Category</span>
+                        <SortHeader field="_count" className="justify-end">Submissions</SortHeader>
+                        <span className="text-right uppercase tracking-wider">Likes</span>
+                        <SortHeader field="points" className="justify-end">Points</SortHeader>
+                        <span />
                     </div>
-                )}
 
-                {/* Challenges Table */}
-                {!loading && (
-                    <div className={`rounded-lg overflow-hidden shadow-lg ${theme === "dark" ? "bg-gray-800" : "bg-white"}`}>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className={`${theme === "dark" ? "bg-gray-700" : "bg-gray-50"}`}>
-                                    <tr>
-                                        <th
-                                            className={`px-6 py-4 text-left text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"} cursor-pointer hover:bg-opacity-80`}
-                                            onClick={() => handleSort("title")}
-                                        >
-                                            Problem <SortIcon field="title" />
-                                        </th>
-                                        <th
-                                            className={`px-6 py-4 text-left text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"} cursor-pointer hover:bg-opacity-80`}
-                                            onClick={() => handleSort("difficulty")}
-                                        >
-                                            Difficulty <SortIcon field="difficulty" />
-                                        </th>
-                                        <th className={`px-6 py-4 text-left text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"}`}>
-                                            Category
-                                        </th>
-                                        <th className={`px-6 py-4 text-center text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"}`}>
-                                            Success Rate
-                                        </th>
-                                        <th
-                                            className={`px-6 py-4 text-center text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"} cursor-pointer hover:bg-opacity-80`}
-                                            onClick={() => handleSort("_count")}
-                                        >
-                                            Submissions <SortIcon field="_count" />
-                                        </th>
-                                        <th className={`px-6 py-4 text-center text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"}`}>
-                                            Likes
-                                        </th>
-                                        <th
-                                            className={`px-6 py-4 text-center text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"} cursor-pointer hover:bg-opacity-80`}
-                                            onClick={() => handleSort("points")}
-                                        >
-                                            Points <SortIcon field="points" />
-                                        </th>
-                                        <th className={`px-6 py-4 text-center text-sm font-semibold ${theme === "dark" ? "text-gray-200" : "text-gray-900"}`}>
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredAndSortedChallenges.map((challenge, index) => {
-                                        const successRate = calculateSuccessRate();
-                                        return (
-                                            <tr
-                                                key={index}
-                                                className={`border-t transition-colors duration-200 py-4 ${theme === "dark"
-                                                    ? "border-gray-700 hover:bg-gray-700/50"
-                                                    : "border-gray-200 hover:bg-gray-50"
-                                                    }`}
-                                            >
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <div className={`font-semibold ${theme === "dark" ? "text-white" : "text-gray-900"} mb-4`}>
-                                                            {challenge.title}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <Badge className={`${getDifficultyColor(challenge.difficulty)} border text-xs`}>
-                                                        {challenge.difficulty}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                                        {challenge.category.name}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className={`font-semibold ${getSuccessRateColor(successRate)}`}>
-                                                        {successRate}%
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Users className="w-4 h-4 text-orange-500" />
-                                                        <span className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                                            {challenge._count?.submissions.toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                                        <span className={`text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                                                            {challenge._count?.likes}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className={`text-lg font-bold ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                                                        {challenge.points}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <Link
-                                                        href={generateChallengeUrl(challenge.title)}
-                                                    >
-                                                        <Button className="cursor-pointer bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white">
-                                                            <Code className="w-4 h-4 mr-2" />
-                                                            Solve
-                                                        </Button>
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                    {loading ? (
+                        <div className="divide-y divide-border">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-4 px-5 py-4">
+                                    <div className="h-4 flex-1 animate-pulse rounded bg-muted" />
+                                    <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                                    <div className="hidden h-4 w-24 animate-pulse rounded bg-muted md:block" />
+                                </div>
+                            ))}
                         </div>
-                    </div>
-                )}
+                    ) : filteredAndSortedChallenges.length === 0 ? (
+                        <div className="flex flex-col items-center px-6 py-16 text-center">
+                            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-muted text-muted-foreground">
+                                <Code2 className="h-7 w-7" />
+                            </span>
+                            <h3 className="mt-4 text-lg font-semibold">No challenges found</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">Try adjusting your filters or search terms.</p>
+                        </div>
+                    ) : (
+                        <ul className="divide-y divide-border">
+                            {filteredAndSortedChallenges.map((challenge, index) => (
+                                <li key={index}>
+                                    <Link
+                                        href={generateChallengeUrl(challenge.title)}
+                                        className="group grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-4 transition-colors hover:bg-muted/50 md:grid-cols-[1fr_7rem_10rem_8rem_5rem_5rem_7rem]"
+                                    >
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <span className="hidden w-6 shrink-0 font-mono text-xs text-muted-foreground sm:block">{index + 1}</span>
+                                            <span className="truncate font-semibold transition-colors group-hover:text-primary">{challenge.title}</span>
+                                        </div>
+                                        <span>
+                                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${getDifficultyColor(challenge.difficulty)}`}>
+                                                {challenge.difficulty.toLowerCase()}
+                                            </span>
+                                        </span>
+                                        <span className="hidden truncate text-sm text-muted-foreground md:block">{challenge.category.name}</span>
+                                        <span className="hidden items-center justify-end gap-1.5 text-sm text-muted-foreground md:flex">
+                                            <Users className="h-3.5 w-3.5" />
+                                            {(challenge._count?.submissions ?? 0).toLocaleString()}
+                                        </span>
+                                        <span className="hidden items-center justify-end gap-1.5 text-sm text-muted-foreground md:flex">
+                                            <Heart className="h-3.5 w-3.5" />
+                                            {challenge._count?.likes ?? 0}
+                                        </span>
+                                        <span className="hidden text-right font-display font-bold md:block">{challenge.points}</span>
+                                        <span className="hidden justify-end md:flex">
+                                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold transition-all group-hover:border-transparent group-hover:bg-brand group-hover:text-white">
+                                                Solve <ArrowRight className="h-3.5 w-3.5" />
+                                            </span>
+                                        </span>
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
 
-                {/* No Results Message */}
-                {!loading && filteredAndSortedChallenges.length === 0 && (
-                    <div className={`text-center py-12 ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}>
-                        <Code className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                        <h3 className="text-xl font-semibold mb-2">No challenges found</h3>
-                        <p>Try adjusting your filters or search terms.</p>
-                    </div>
-                )}
-
-                {/* Summary Stats */}
                 {!loading && filteredAndSortedChallenges.length > 0 && (
-                    <div className={`mt-6 text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"} text-center`}>
+                    <p className="mt-6 text-center text-sm text-muted-foreground">
                         Showing {filteredAndSortedChallenges.length} of {challenges.length} challenges
-                    </div>
+                    </p>
                 )}
             </div>
         </div>
@@ -345,3 +282,4 @@ const ChallengesPage = () => {
 }
 
 export default ChallengesPage
+

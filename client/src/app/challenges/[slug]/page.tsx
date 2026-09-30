@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Split from "react-split"
@@ -75,6 +75,12 @@ interface Challenge {
         avgMemory: number
     }
     userLikeStatus?: boolean | null
+    // Per-language boilerplate that already parses this challenge's test-case input
+    // and prints the answer in the format its test cases expect. Absent for
+    // challenges that predate this feature, or that have no runnable judge (SQL).
+    // `locked` is shown read-only in the editor and sent to the judge unchanged;
+    // only `editable` is ever shown as something the user can type into.
+    starterCode?: Record<string, { editable: string; locked: string }> | null
 }
 
 interface TestResult {
@@ -106,6 +112,8 @@ const ChallengePage = () => {
     const [challenge, setChallenge] = useState<Challenge | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedLanguage, setSelectedLanguage] = useState<string>('Java')
+    // The whole file, shown in one editor. The judge code at the end of it (when the
+    // challenge has one for this language) is locked by the editor itself.
     const [code, setCode] = useState<string>("")
     const [testResults, setTestResults] = useState<TestResult[] | null>(null)
     const [submissionStatus, setSubmissionStatus] = useState<string | null>(null)
@@ -121,6 +129,7 @@ const ChallengePage = () => {
     const [isLikeLoading, setIsLikeLoading] = useState(false)
     const isStatsLoadingRef = useRef(false)
     const statsFetchedForChallengeRef = useRef<string | null>(null)
+    const seededChallengeRef = useRef<string | null>(null)
 
     // Determine if challenge is solved (accepted submission exists or current submission accepted)
     const hasAcceptedSubmission = submissions.some((s) => s.status === "ACCEPTED")
@@ -133,12 +142,14 @@ const ChallengePage = () => {
                 const challenge = challengeData?.challenge;
                 setChallenge(challenge || null);
                 
-                if (challenge) {
-                    // Initialize likes and dislikes from challenge data
+                // Seed counts from the (possibly cached) payload only when the challenge
+                // actually changes. Re-seeding on every re-render would overwrite the live
+                // counts with a stale snapshot right after the user likes something.
+                if (challenge && seededChallengeRef.current !== challenge.id) {
+                    seededChallengeRef.current = challenge.id;
                     setLikesCount(challenge._count?.likes || 0);
                     setDislikesCount(challenge.dislikes || 0);
-                    
-                    // Reset stats fetched flag when challenge changes
+                    setUserLikeStatus(null);
                     statsFetchedForChallengeRef.current = null;
                 }
             } catch (error) {
@@ -155,8 +166,9 @@ const ChallengePage = () => {
     }, [challengeData, slug])
 
     // Fetch challenge stats (likes/dislikes and user status)
-    const fetchChallengeStats = useCallback(async (challengeId: string) => {
-        if (isStatsLoadingRef.current || statsFetchedForChallengeRef.current === challengeId) {
+    const fetchChallengeStats = useCallback(async (challengeId: string, viewerId?: string) => {
+        const fetchKey = `${challengeId}|${viewerId ?? 'anon'}`;
+        if (isStatsLoadingRef.current || statsFetchedForChallengeRef.current === fetchKey) {
             return; // Prevent multiple simultaneous requests or duplicate fetches
         }
         
@@ -177,7 +189,7 @@ const ChallengePage = () => {
                     setLikesCount(data.likes)
                     setDislikesCount(data.dislikes)
                     setUserLikeStatus(data.userLikeStatus)
-                    statsFetchedForChallengeRef.current = challengeId; // Mark as fetched
+                    statsFetchedForChallengeRef.current = fetchKey; // Mark as fetched
                 }
             }
         } catch (error) {
@@ -187,12 +199,11 @@ const ChallengePage = () => {
         }
     }, [])
 
-    // Separate effect for fetching user-specific stats when authenticated
+    // Load the authoritative counts. Signed-out visitors see counts too; signing in
+    // refetches so the viewer's own like state comes through.
     useEffect(() => {
-        if (session?.user?.id && challenge?.id && 
-            !isStatsLoadingRef.current && 
-            statsFetchedForChallengeRef.current !== challenge.id) {
-            fetchChallengeStats(challenge.id);
+        if (challenge?.id) {
+            fetchChallengeStats(challenge.id, session?.user?.id);
         }
     }, [session?.user?.id, challenge?.id, fetchChallengeStats])
 
@@ -437,8 +448,13 @@ const ChallengePage = () => {
         })
     }
 
-    // Get language-specific template code
+    // Get language-specific template code: the challenge's own starter code when it
+    // has one for this language (it already wires up the test case's real input), and
+    // a generic placeholder otherwise.
     const getLanguageTemplate = (language: string) => {
+        const challengeTemplate = challenge?.starterCode?.[language.toLowerCase()]
+        if (challengeTemplate) return challengeTemplate.editable + challengeTemplate.locked
+
         // Provide basic templates for common languages
         switch (language.toLowerCase()) {
             case "javascript":
@@ -494,12 +510,29 @@ int main() {
         }
     }
 
-    // Set template code when language changes
+    // The judge code at the end of the file, which the editor won't let anyone change.
+    // It starts at the "Do not edit below" comment, so the blank line above it stays
+    // editable and the user can still add code right after their function.
+    const lockedSuffix = useMemo(() => {
+        if (!selectedLanguage) return ""
+        const locked = challenge?.starterCode?.[selectedLanguage.toLowerCase()]?.locked ?? ""
+        return locked.replace(/^\n+/, "")
+    }, [challenge, selectedLanguage])
+
+    // Set template code when the language changes, or once the challenge (and its
+    // starter code) finishes loading. Only overwrites code the user hasn't started
+    // editing yet - either empty, or exactly the last template we auto-filled - so a
+    // late-arriving challenge upgrades the generic placeholder without ever
+    // clobbering something the user has typed.
+    const lastAutoTemplateRef = useRef<string | null>(null)
     useEffect(() => {
-        if (selectedLanguage && code === "") {
-            setCode(getLanguageTemplate(selectedLanguage))
-        }
-    }, [selectedLanguage, code])
+        if (!selectedLanguage) return
+        if (code !== "" && code !== lastAutoTemplateRef.current) return
+
+        const template = getLanguageTemplate(selectedLanguage)
+        lastAutoTemplateRef.current = template
+        setCode(template)
+    }, [selectedLanguage, challenge, code])
 
     // Handle like/dislike action
     const handleLikeToggle = async (isLike: boolean) => {
@@ -509,7 +542,15 @@ int main() {
             return
         }
 
-        if (!challenge) return
+        if (!challenge || isLikeLoading) return
+
+        // Apply the change immediately, then reconcile with the server's authoritative
+        // counts. On failure we put the previous values back.
+        const previous = { status: userLikeStatus, likes: likesCount, dislikes: dislikesCount }
+        const nextStatus = userLikeStatus === isLike ? null : isLike
+        setUserLikeStatus(nextStatus)
+        setLikesCount(previous.likes + (nextStatus === true ? 1 : 0) - (previous.status === true ? 1 : 0))
+        setDislikesCount(previous.dislikes + (nextStatus === false ? 1 : 0) - (previous.status === false ? 1 : 0))
 
         setIsLikeLoading(true)
         try {
@@ -534,10 +575,16 @@ int main() {
                 }
             } else {
                 const error = await response.json()
+                setUserLikeStatus(previous.status)
+                setLikesCount(previous.likes)
+                setDislikesCount(previous.dislikes)
                 toast.error(error.message || "Failed to update like status")
             }
         } catch (error) {
             console.error("Error toggling like:", error)
+            setUserLikeStatus(previous.status)
+            setLikesCount(previous.likes)
+            setDislikesCount(previous.dislikes)
             toast.error("Failed to update like status")
         } finally {
             setIsLikeLoading(false)
@@ -1032,6 +1079,7 @@ int main() {
                                     <CodeEditor
                                         value={code}
                                         onChange={setCode}
+                                        lockedSuffix={lockedSuffix}
                                         language={selectedLanguage?.toLowerCase() || "javascript"}
                                         theme={theme === "dark" ? "vs-dark" : "vs-light"}
                                         height="100%"

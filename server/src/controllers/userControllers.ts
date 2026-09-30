@@ -1,3 +1,4 @@
+import { fetchLeaderboard } from '../lib/leaderboardSocket.js';
 import { type Request, type Response } from 'express';
 import prisma from '../lib/prisma.js';
 import { 
@@ -359,7 +360,7 @@ export const getLeaderboard = async (req: Request, res: Response) => {
         console.log(`Fetching leaderboard from database (limit: ${limitNum}, offset: ${offsetNum})`);
         const startTime = Date.now();
         
-        const leaderboard = await getLeaderboardRanking(limitNum, offsetNum);
+        const leaderboard = { leaderboard: await fetchLeaderboard(limitNum, offsetNum) };
         
         const queryTime = Date.now() - startTime;
         console.log(`Leaderboard query completed in ${queryTime}ms`);
@@ -604,8 +605,8 @@ export const getUserContests = async (req: Request, res: Response) => {
 
 export const updateUserProfile = async (req: Request, res: Response) => {
     try {
-        const { userId } = req.params;
-        console.log('Update profile request for user:', userId);
+        // Only the logged-in user can edit their own profile
+        const userId = req.user?.id;
         const { name, email, image, profile } = req.body;
         
         if (!userId) {
@@ -1027,5 +1028,145 @@ export const updateUserPreferences = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error updating user preferences:', error);
         res.status(500).json({ message: 'Internal server error', error });
+    }
+};
+
+// Single submission with full code and per-test results. Owner or admin only.
+export const getSubmissionById = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: 'Submission ID is required' });
+        }
+
+        const submission = await prisma.submission.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                userId: true,
+                code: true,
+                status: true,
+                runtime: true,
+                memory: true,
+                score: true,
+                createdAt: true,
+                testResults: true,
+                challenge: {
+                    select: { id: true, title: true, difficulty: true, points: true }
+                },
+                language: { select: { id: true, name: true } },
+                user: { select: { username: true, name: true } }
+            }
+        });
+
+        if (!submission) {
+            return res.status(404).json({ message: 'Submission not found' });
+        }
+
+        if (submission.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'You can only view your own submissions' });
+        }
+
+        // Hidden test cases must not reveal their input or expected output
+        const testResults = Array.isArray(submission.testResults) ? submission.testResults : [];
+        const hiddenIds = new Set(
+            (await prisma.testCase.findMany({
+                where: { challengeId: submission.challenge.id, isHidden: true },
+                select: { id: true }
+            })).map(tc => tc.id)
+        );
+        const safeResults = testResults.map((r: any) =>
+            hiddenIds.has(r?.testCaseId)
+                ? { testCaseId: r.testCaseId, passed: r.passed, status: r.status, runtime: r.runtime, memory: r.memory, hidden: true }
+                : r
+        );
+
+        const { userId, ...rest } = submission;
+        res.json({ success: true, submission: { ...rest, testResults: safeResults } });
+    } catch (error) {
+        console.error('Error fetching submission:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+const HEATMAP_DAYS = 365;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const toDayKey = (date: Date) => date.toISOString().slice(0, 10);
+
+/**
+ * Daily submission counts for the past year (UTC days), plus current and longest streaks.
+ * A day counts towards a streak when it has at least one submission.
+ */
+export const getUserHeatmap = async (req: Request, res: Response) => {
+    try {
+        const { username } = req.params;
+        if (!username) {
+            return res.status(400).json({ message: 'Username is required' });
+        }
+
+        const cacheKey = `user_heatmap_${username}`;
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            return res.json(cached);
+        }
+
+        const user = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        const start = new Date(today.getTime() - (HEATMAP_DAYS - 1) * DAY_MS);
+
+        const submissions = await prisma.submission.findMany({
+            where: { userId: user.id, createdAt: { gte: start } },
+            select: { createdAt: true, status: true }
+        });
+
+        const counts = new Map<string, { count: number; accepted: number }>();
+        for (const { createdAt, status } of submissions) {
+            const key = toDayKey(createdAt);
+            const day = counts.get(key) ?? { count: 0, accepted: 0 };
+            day.count++;
+            if (status === 'ACCEPTED') day.accepted++;
+            counts.set(key, day);
+        }
+
+        const days = Array.from({ length: HEATMAP_DAYS }, (_, i) => {
+            const date = toDayKey(new Date(start.getTime() + i * DAY_MS));
+            return { date, ...(counts.get(date) ?? { count: 0, accepted: 0 }) };
+        });
+
+        let maxStreak = 0;
+        let run = 0;
+        for (const day of days) {
+            run = day.count > 0 ? run + 1 : 0;
+            maxStreak = Math.max(maxStreak, run);
+        }
+
+        // A streak is still alive if the user was active yesterday but hasn't submitted yet today.
+        let currentStreak = 0;
+        let i = days.length - 1;
+        if (days[i]!.count === 0) i--;
+        while (i >= 0 && days[i]!.count > 0) {
+            currentStreak++;
+            i--;
+        }
+
+        const result = {
+            days,
+            totalSubmissions: submissions.length,
+            activeDays: counts.size,
+            currentStreak,
+            maxStreak
+        };
+
+        cache.setShort(cacheKey, result);
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching user heatmap:', error);
+        res.status(500).json({ message: 'Internal server error' });
     }
 };

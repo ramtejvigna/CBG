@@ -1,3 +1,4 @@
+import { invalidateSessionsForUser } from '../lib/sessionCache.js';
 import { type Request, type Response } from 'express';
 import prisma from "../lib/prisma.js";
 import bcrypt from 'bcryptjs';
@@ -315,6 +316,11 @@ export const updateUser = async (req: Request, res: Response) => {
         if (name !== undefined) updateData.name = name;
         if (email !== undefined) updateData.email = email;
         if (role !== undefined) updateData.role = role;
+
+        // A role change must take effect at once, so drop this user's cached sessions
+        if (role !== undefined && role !== existingUser.role) {
+            await invalidateSessionsForUser(userId);
+        }
 
         const updatedUser = await prisma.user.update({
             where: { id: userId },

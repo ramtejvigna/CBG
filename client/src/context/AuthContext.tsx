@@ -70,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     name: session.user.name || '',
                     username: session.user.username || '',
                     image: session.user.image || '',
+                    hasImage: !!session.user.image,
                     needsOnboarding: session.user.needsOnboarding || false
                 } as User);
                 console.log('Session data:', session);
@@ -121,6 +122,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (!currentUser && isProtectedRoute) {
             router.push('/login');
+        }
+
+        // A user who hasn't chosen a username yet must finish onboarding first
+        if (currentUser && 'needsOnboarding' in currentUser && currentUser.needsOnboarding && pathname !== '/onboarding') {
+            router.push('/onboarding');
+            return;
         }
 
         if (currentUser) {

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Forward the search request to the backend API
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/search?q=${encodeURIComponent(query)}`, {
+        const response = await fetch(`${(process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL)}/api/search?q=${encodeURIComponent(query)}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

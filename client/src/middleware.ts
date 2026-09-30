@@ -20,7 +20,7 @@ export default withAuth(
         }
 
         // For protected routes, require authentication
-        const protectedRoutes = ['/profile', '/challenges', '/contests', '/settings', '/onboarding'];
+        const protectedRoutes = ['/profile', '/challenges', '/contests', '/settings', '/onboarding', '/submissions'];
         if (protectedRoutes.some(route => req.nextUrl.pathname.startsWith(route))) {
           return !!token;
         }

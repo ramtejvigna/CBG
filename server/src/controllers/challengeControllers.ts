@@ -1,5 +1,6 @@
+import { getLikeCounts, refreshLikeCounts } from '../lib/likeCounts.js';
 import type { Request, Response } from 'express';
-import { Difficulty } from '@prisma/client';
+import { Difficulty, Prisma } from '@prisma/client';
 import prisma from '../lib/prisma.js';
 
 export const getChallengeBySlug = async (req: Request, res: Response) => {
@@ -69,21 +70,8 @@ export const getChallengeBySlug = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        // Get likes and dislikes count in parallel
-        const [likesCount, dislikesCount] = await Promise.all([
-            prisma.challengeLike.count({
-                where: {
-                    challengeId: bestMatch.id,
-                    isLike: true
-                }
-            }),
-            prisma.challengeLike.count({
-                where: {
-                    challengeId: bestMatch.id,
-                    isLike: false
-                }
-            })
-        ]);
+        // Cached totals; falls back to Postgres when Redis is cold or unavailable
+        const { likes: likesCount, dislikes: dislikesCount } = await getLikeCounts(bestMatch.id);
 
         // Add the proper counts to the response
         const responseData = {
@@ -144,21 +132,8 @@ export const getChallengeById = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        // Get likes and dislikes count in parallel
-        const [likesCount, dislikesCount] = await Promise.all([
-            prisma.challengeLike.count({
-                where: {
-                    challengeId: challenge.id,
-                    isLike: true
-                }
-            }),
-            prisma.challengeLike.count({
-                where: {
-                    challengeId: challenge.id,
-                    isLike: false
-                }
-            })
-        ]);
+        // Cached totals; falls back to Postgres when Redis is cold or unavailable
+        const { likes: likesCount, dislikes: dislikesCount } = await getLikeCounts(challenge.id);
 
         // Add the proper counts to the response
         const responseData = {
@@ -303,7 +278,8 @@ export const createChallenge = async (req: Request, res: Response) => {
             testCases,
             timeLimit,
             memoryLimit,
-            challengeType
+            challengeType,
+            starterCode
         } = req.body;
 
         if (!req.user?.id) {
@@ -328,6 +304,7 @@ export const createChallenge = async (req: Request, res: Response) => {
                 memoryLimit,
                 challengeType,
                 creatorId: req.user.id, // Type-safe after validation
+                ...(starterCode ? { starterCode: starterCode as unknown as Prisma.InputJsonValue } : {}),
                 languages: {
                     connect: languageIds?.map((id: string) => ({ id })) || []
                 },
@@ -365,7 +342,8 @@ export const updateChallenge = async (req: Request, res: Response) => {
             testCases,
             timeLimit,
             memoryLimit,
-            challengeType
+            challengeType,
+            starterCode
         } = req.body;
 
         if (!id) {
@@ -402,6 +380,7 @@ export const updateChallenge = async (req: Request, res: Response) => {
                 timeLimit,
                 memoryLimit,
                 challengeType,
+                ...(starterCode !== undefined && { starterCode: starterCode as unknown as Prisma.InputJsonValue }),
                 ...(languageIds && {
                     languages: {
                         set: languageIds.map((id: string) => ({ id }))
@@ -452,85 +431,43 @@ export const likeChallengeToggle = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Challenge not found' });
         }
 
-        // Check if user has already liked/disliked this challenge
-        const existingLike = await prisma.challengeLike.findUnique({
-            where: {
-                userId_challengeId: {
-                    userId,
-                    challengeId
-                }
-            }
-        });
-
-        if (existingLike) {
-            if (existingLike.isLike === isLike) {
-                // User is clicking the same action, so remove the like/dislike
-                await prisma.challengeLike.delete({
-                    where: {
-                        userId_challengeId: {
-                            userId,
-                            challengeId
-                        }
-                    }
-                });
-            } else {
-                // User is switching from like to dislike or vice versa
-                await prisma.challengeLike.update({
-                    where: {
-                        userId_challengeId: {
-                            userId,
-                            challengeId
-                        }
-                    },
-                    data: {
-                        isLike
-                    }
-                });
-            }
-        } else {
-            // User hasn't liked/disliked this challenge yet, create new record
-            await prisma.challengeLike.create({
-                data: {
-                    userId,
-                    challengeId,
-                    isLike
-                }
-            });
+        if (typeof isLike !== 'boolean') {
+            return res.status(400).json({ message: 'isLike must be true or false' });
         }
 
-        // Get updated counts
-        const likesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId,
-                isLike: true
-            }
+        // Check if user has already liked/disliked this challenge
+        const existingLike = await prisma.challengeLike.findUnique({
+            where: { userId_challengeId: { userId, challengeId } },
+            select: { isLike: true }
         });
 
-        const dislikesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId,
-                isLike: false
-            }
-        });
+        let userLikeStatus: boolean | null;
 
-        // Get current user's like status
-        const userLikeStatus = await prisma.challengeLike.findUnique({
-            where: {
-                userId_challengeId: {
-                    userId,
-                    challengeId
-                }
-            },
-            select: {
-                isLike: true
-            }
-        });
+        if (existingLike?.isLike === isLike) {
+            // Clicking the same button again clears the vote
+            await prisma.challengeLike.delete({
+                where: { userId_challengeId: { userId, challengeId } }
+            });
+            userLikeStatus = null;
+        } else {
+            // Upsert rather than create/update so two rapid clicks cannot collide
+            // on the unique (userId, challengeId) constraint.
+            await prisma.challengeLike.upsert({
+                where: { userId_challengeId: { userId, challengeId } },
+                update: { isLike },
+                create: { userId, challengeId, isLike }
+            });
+            userLikeStatus = isLike;
+        }
+
+        // Recompute both totals from Postgres and refresh the cache in one step
+        const { likes: likesCount, dislikes: dislikesCount } = await refreshLikeCounts(challengeId);
 
         res.json({
             success: true,
             likes: likesCount,
             dislikes: dislikesCount,
-            userLikeStatus: userLikeStatus?.isLike ?? null
+            userLikeStatus
         });
     } catch (error) {
         console.error('Error toggling challenge like:', error);
@@ -547,20 +484,8 @@ export const getChallengeStats = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Challenge ID is required' });
         }
 
-        // Get like/dislike counts
-        const likesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId,
-                isLike: true
-            }
-        });
-
-        const dislikesCount = await prisma.challengeLike.count({
-            where: {
-                challengeId,
-                isLike: false
-            }
-        });
+        // Totals come from the cache; the viewer's own vote is a cheap indexed lookup
+        const { likes: likesCount, dislikes: dislikesCount } = await getLikeCounts(challengeId);
 
         // Get current user's like status if authenticated
         let userLikeStatus = null;

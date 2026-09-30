@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { 
     adminLogin, 
-    registerAdmin, 
     getAdminProfile,
     getAllUsersAdmin,
     updateUser,
@@ -23,7 +22,6 @@ import { authenticateAdmin } from '../middleware/auth.js';
 const router = Router();
 
 // Public admin routes
-router.post('/register', registerAdmin);
 router.post('/login', adminLogin);
 
 // Protected admin routes

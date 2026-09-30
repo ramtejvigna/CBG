@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
+import ThemeProvider from "@/components/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import { SessionProvider } from "next-auth/react";
 import { AuthRouter } from "@/components/AuthRouter";
@@ -33,14 +34,23 @@ export default function ClientLayout({
 
     return (
         <SessionProvider>
-            <AuthProvider>
-                <AuthRouter>
-                    {shouldShowNavBarFooter && <NavBar />}
-                    {children}
-                    {shouldShowNavBarFooter && <Footer />}
-                    <Toaster position="top-right" />
-                </AuthRouter>
-            </AuthProvider>
+            <ThemeProvider>
+                <AuthProvider>
+                    <AuthRouter>
+                        <div className="flex min-h-dvh flex-col">
+                            {shouldShowNavBarFooter && <NavBar />}
+                            <main className="flex-1">{children}</main>
+                            {shouldShowNavBarFooter && <Footer />}
+                        </div>
+                        <Toaster
+                            position="top-right"
+                            toastOptions={{
+                                className: "!bg-popover !text-popover-foreground !border !border-border !rounded-xl !shadow-2xl",
+                            }}
+                        />
+                    </AuthRouter>
+                </AuthProvider>
+            </ThemeProvider>
         </SessionProvider>
     );
 }

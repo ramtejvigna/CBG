@@ -1,0 +1,138 @@
+# Local development stack: `docker compose up --build`
+#   web  http://localhost:3000     api  http://localhost:5000     db  localhost:5433
+name: cbg
+
+x-node: &node
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.dev
+  restart: "no"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cbg
+      POSTGRES_PASSWORD: cbg
+      POSTGRES_DB: cbg
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cbg -d cbg"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # Cache only: no data here needs to survive a restart
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Builds the image that runs submitted code, then exits
+  sandbox:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.sandbox
+    image: code-execution-sandbox:latest
+    command: ["true"]
+    restart: "no"
+
+  # One-shot: install deps, apply migrations, seed sample data (safe to re-run)
+  api-setup:
+    <<: *node
+    working_dir: /app
+    environment: &api-env
+      NODE_ENV: development
+      PORT: 5000
+      DATABASE_URL: postgresql://cbg:cbg@db:5432/cbg
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: http://localhost:${WEB_PORT:-3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-LocalAdmin-ChangeMe1}
+      DOCKER_CONTAINER: "true"
+      EXEC_TMP_VOLUME: cbg-exec-tmp
+    volumes:
+      - ./server:/app
+      - api_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - npm install --no-audit --no-fund && npx prisma generate && npx prisma migrate deploy && npx tsx prisma/seed.ts
+
+  api:
+    <<: *node
+    working_dir: /app
+    environment: *api-env
+    ports:
+      - "${API_PORT:-5000}:5000"
+    volumes:
+      - ./server:/app
+      - api_node_modules:/app/node_modules
+      - exec_tmp:/app/tmp
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      api-setup:
+        condition: service_completed_successfully
+      sandbox:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    # -L polls for changes, because file events don't cross from Windows into the container
+    command: ["npx", "nodemon", "-L", "--exec", "tsx", "src/server.ts"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  web:
+    <<: *node
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      # The browser reaches the API on your machine; the web container reaches it on the Docker network
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-5000}
+      API_INTERNAL_URL: http://api:5000
+      NEXTAUTH_URL: http://localhost:${WEB_PORT:-3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-dev-secret-change-me}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DATABASE_URL: postgresql://cbg:cbg@db:5432/cbg
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./client:/app
+      - web_node_modules:/app/node_modules
+      - web_next:/app/.next
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - npm install --no-audit --no-fund && npx next dev -H 0.0.0.0 -p 3000
+
+volumes:
+  pgdata:
+  api_node_modules:
+  web_node_modules:
+  web_next:
+  exec_tmp:
+    name: cbg-exec-tmp

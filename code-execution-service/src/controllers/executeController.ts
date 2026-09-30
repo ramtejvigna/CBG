@@ -57,9 +57,9 @@ export const executeCode = async (req: Request, res: Response) => {
             challengeId, 
             testCaseId, 
             isSubmission, 
-            userId,
             contestId 
         } = req.body;
+        const userId = req.user!.id;
 
         // Validate required fields
         if (!code || !language || !challengeId) {
